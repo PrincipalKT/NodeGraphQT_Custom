@@ -19,7 +19,6 @@ from NodeGraphQt.widgets.node_widgets import (
     NodeLineEdit
 )
 
-print("calling from basenode classd")
 
 class BaseNode(NodeObject):
     """
@@ -58,12 +57,11 @@ class BaseNode(NodeObject):
 
     NODE_NAME = 'Node'
 
-    def __init__(self, qgraphics_item=None,flip_node = False):
+    def __init__(self, qgraphics_item=None):
         super(BaseNode, self).__init__(qgraphics_item or NodeItem)
         self._inputs = []
         self._outputs = []
-        self._flip_node = flip_node
-        self.view._flip_node = flip_node
+        
 
     @property
     def flip_node(self):
@@ -386,7 +384,7 @@ class BaseNode(NodeObject):
             undo_cmd.redo()
 
     def add_input(self, name='input', multi_input=False, display_name=True,
-                  color=None, locked=False, painter_func=None):
+                  color=None, locked=False, painter_func=None,flip_node=False):
         """
         Add input :class:`Port` to node.
 
@@ -412,7 +410,7 @@ class BaseNode(NodeObject):
         port_args = [name, multi_input, display_name, locked]
         if painter_func and callable(painter_func):
             port_args.append(painter_func)
-        view = self.view.add_input(*port_args)
+        view = self.view.add_input(*port_args,flip_node= flip_node)
 
         if color:
             view.color = color
@@ -429,7 +427,7 @@ class BaseNode(NodeObject):
         return port
 
     def add_output(self, name='output', multi_output=True, display_name=True,
-                   color=None, locked=False, painter_func=None):
+                   color=None, locked=False, painter_func=None,flip_node = False):
         """
         Add output :class:`Port` to node.
 
@@ -455,7 +453,7 @@ class BaseNode(NodeObject):
         port_args = [name, multi_output, display_name, locked]
         if painter_func and callable(painter_func):
             port_args.append(painter_func)
-        view = self.view.add_output(*port_args)
+        view = self.view.add_output(*port_args,flip_node=flip_node)
 
         if color:
             view.color = color

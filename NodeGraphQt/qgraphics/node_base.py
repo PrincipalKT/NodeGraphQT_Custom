@@ -40,8 +40,7 @@ class NodeItem(AbstractNodeItem):
         self._widgets = OrderedDict()
         self._proxy_mode = False
         self._proxy_mode_threshold = 70
-        self._flip_node = False
-        print("Hello",__class__.name)
+        
 
     def post_init(self, viewer, pos=None):
         """
@@ -351,7 +350,12 @@ class NodeItem(AbstractNodeItem):
             t_width = text.boundingRect().width()
             if text.isVisible() and t_width > p_input_text_width:
                 p_input_text_width = text.boundingRect().width()
-            p_input_height += port.boundingRect().height()
+
+            # flip logic
+            if not port.flipped:
+                p_input_height += port.boundingRect().height()
+            else:
+                p_output_height += port.boundingRect().height()
         for port, text in self._output_items.items():
             if not port.isVisible():
                 continue
@@ -360,7 +364,11 @@ class NodeItem(AbstractNodeItem):
             t_width = text.boundingRect().width()
             if text.isVisible() and t_width > p_output_text_width:
                 p_output_text_width = text.boundingRect().width()
-            p_output_height += port.boundingRect().height()
+            # flip logic
+            if not port.flipped:
+                p_output_height += port.boundingRect().height()
+            else:
+                p_input_height += port.boundingRect().height()
 
         port_text_width = p_input_text_width + p_output_text_width
 
@@ -567,52 +575,128 @@ class NodeItem(AbstractNodeItem):
         txt_offset = PortEnum.CLICK_FALLOFF.value - 2
         spacing = 1
 
-        # adjust input position
-        inputs = [p for p in self.inputs if p.isVisible()]
-        if inputs:
-            port_width = inputs[0].boundingRect().width()
-            port_height = inputs[0].boundingRect().height()
-            if self._flip_node:
-                port_x = width - (port_width / 2)
-            else:
+        inputs_unflipped = [p for p in self.inputs if p.isVisible() and not p.flipped]
+        inputs_flipped = [p for p in self.inputs if p.isVisible() and p.flipped]
+        outputs_unflipped = [p for p in self.outputs if p.isVisible() and not p.flipped]
+        outputs_flipped = [p for p in self.outputs if p.isVisible() and p.flipped]
+        inputs_unflipped.reverse()
+        inputs_flipped.reverse()
+        outputs_unflipped.reverse()
+        outputs_flipped.reverse()
+        port_y_left = v_offset
+        port_y_right = v_offset
+        while inputs_flipped or inputs_unflipped or outputs_flipped or outputs_unflipped: 
+            layer_left_pos_occupied = False
+            layer_right_pos_occupied = False
+            if inputs_unflipped and not layer_left_pos_occupied:
+                port = inputs_unflipped.pop()
+                text = self.get_input_text_item(port)
+                txt_width = text.boundingRect().width() - txt_offset
+                port_width = port.boundingRect().width()
+                port_height = port.boundingRect().height()
                 port_x = (port_width / 2) * -1
+                port.setPos(port_x, port_y_left)
+                txt_x = port.boundingRect().width() / 2 - txt_offset
+                text.setPos(txt_x, port.y() - 1.5)
+                layer_left_pos_occupied = True
+                port_y_left += port_height + spacing
             
-            port_y = v_offset
-            for port in inputs:
-                port.setPos(port_x, port_y)
-                port_y += port_height + spacing
-        # adjust input text position
-        for port, text in self._input_items.items():
-            if port.isVisible():
-                if self._flip_node:
-                    txt_width = text.boundingRect().width() - txt_offset
-                    txt_x = port.x() - txt_width
-                else:
-                    txt_x = port.boundingRect().width() / 2 - txt_offset
-                text.setPos(txt_x, port.y() - 1.5)
-
-        # adjust output position
-        outputs = [p for p in self.outputs if p.isVisible()]
-        if outputs:
-            port_width = outputs[0].boundingRect().width()
-            port_height = outputs[0].boundingRect().height()
-            if self._flip_node:
+            if outputs_flipped and not layer_left_pos_occupied:
+                port = outputs_flipped.pop()
+                text = self.get_output_text_item(port)
+                txt_width = text.boundingRect().width() - txt_offset
+                port_width = port.boundingRect().width()
+                port_height = port.boundingRect().height()
                 port_x = (port_width / 2) * -1
-            else:
-                port_x = width - (port_width / 2)
-            port_y = v_offset
-            for port in outputs:
-                port.setPos(port_x, port_y)
-                port_y += port_height + spacing
-        # adjust output text position
-        for port, text in self._output_items.items():
-            if port.isVisible():
-                if self._flip_node:
-                    txt_x = port.boundingRect().width() / 2 - txt_offset
-                else:
-                    txt_width = text.boundingRect().width() - txt_offset
-                    txt_x = port.x() - txt_width
+                port.setPos(port_x, port_y_left)
+                txt_x = port.boundingRect().width() / 2 - txt_offset
                 text.setPos(txt_x, port.y() - 1.5)
+                layer_left_pos_occupied = True
+                port_y_left += port_height + spacing
+
+            if inputs_flipped and not layer_right_pos_occupied:
+                port = inputs_flipped.pop()
+                text = self.get_input_text_item(port)
+                txt_width = text.boundingRect().width() - txt_offset
+                port_width = port.boundingRect().width()
+                port_height = port.boundingRect().height()
+                port_x = width - (port_width / 2)
+                port.setPos(port_x, port_y_right)
+                txt_x = port.x() - txt_width
+                text.setPos(txt_x, port.y() - 1.5)
+                layer_right_pos_occupied = True
+                port_y_right += port_height + spacing
+
+            if outputs_unflipped and not layer_right_pos_occupied:
+                port = outputs_unflipped.pop()
+                text = self.get_output_text_item(port)
+                txt_width = text.boundingRect().width() - txt_offset
+                port_width = port.boundingRect().width()
+                port_height = port.boundingRect().height()
+                port_x = width - (port_width / 2)
+                
+                port.setPos(port_x, port_y_right)
+                txt_x = port.x() - txt_width
+                text.setPos(txt_x, port.y() - 1.5)
+                layer_right_pos_occupied = True
+                port_y_right += port_height + spacing
+            
+            
+
+            
+
+
+    # def _align_ports_horizontal(self, v_offset):
+    #     width = self._width
+    #     txt_offset = PortEnum.CLICK_FALLOFF.value - 2
+    #     spacing = 1
+
+    #     # adjust input position
+    #     inputs = [p for p in self.inputs if p.isVisible()]
+    #     if inputs:
+    #         port_width = inputs[0].boundingRect().width()
+    #         port_height = inputs[0].boundingRect().height()
+    #         if self._flip_node:
+    #             port_x = width - (port_width / 2)
+    #         else:
+    #             port_x = (port_width / 2) * -1
+            
+    #         port_y = v_offset
+    #         for port in inputs:
+    #             port.setPos(port_x, port_y)
+    #             port_y += port_height + spacing
+    #     # adjust input text position
+    #     for port, text in self._input_items.items():
+    #         if port.isVisible():
+    #             if self._flip_node:
+    #                 txt_width = text.boundingRect().width() - txt_offset
+    #                 txt_x = port.x() - txt_width
+    #             else:
+    #                 txt_x = port.boundingRect().width() / 2 - txt_offset
+    #             text.setPos(txt_x, port.y() - 1.5)
+
+    #     # adjust output position
+    #     outputs = [p for p in self.outputs if p.isVisible()]
+    #     if outputs:
+    #         port_width = outputs[0].boundingRect().width()
+    #         port_height = outputs[0].boundingRect().height()
+    #         if self._flip_node:
+    #             port_x = (port_width / 2) * -1
+    #         else:
+    #             port_x = width - (port_width / 2)
+    #         port_y = v_offset
+    #         for port in outputs:
+    #             port.setPos(port_x, port_y)
+    #             port_y += port_height + spacing
+    #     # adjust output text position
+    #     for port, text in self._output_items.items():
+    #         if port.isVisible():
+    #             if self._flip_node:
+    #                 txt_x = port.boundingRect().width() / 2 - txt_offset
+    #             else:
+    #                 txt_width = text.boundingRect().width() - txt_offset
+    #                 txt_x = port.x() - txt_width
+    #             text.setPos(txt_x, port.y() - 1.5)
 
     def _align_ports_vertical(self, v_offset):
         # adjust input position
@@ -947,7 +1031,7 @@ class NodeItem(AbstractNodeItem):
         return port
 
     def add_input(self, name='input', multi_port=False, display_name=True,
-                  locked=False, painter_func=None):
+                  locked=False, painter_func=None,flip_node = False):
         """
         Adds a port qgraphics item into the node with the "port_type" set as
         IN_PORT.
@@ -971,10 +1055,11 @@ class NodeItem(AbstractNodeItem):
         port.multi_connection = multi_port
         port.display_name = display_name
         port.locked = locked
+        port.flipped = flip_node
         return self._add_port(port)
 
     def add_output(self, name='output', multi_port=False, display_name=True,
-                   locked=False, painter_func=None):
+                   locked=False, painter_func=None,flip_node=False):
         """
         Adds a port qgraphics item into the node with the "port_type" set as
         OUT_PORT.
@@ -998,6 +1083,7 @@ class NodeItem(AbstractNodeItem):
         port.multi_connection = multi_port
         port.display_name = display_name
         port.locked = locked
+        port.flipped = flip_node
         return self._add_port(port)
 
     def _delete_port(self, port, text):

@@ -31,6 +31,15 @@ class PortItem(QtWidgets.QGraphicsItem):
         self._port_type = None
         self._multi_connection = False
         self._locked = False
+        self._flipped = False
+    
+    @property
+    def flipped(self):
+        return self._flipped
+    
+    @flipped.setter
+    def flipped(self,value : bool):
+        self._flipped = value
 
     def __str__(self):
         return '{}.PortItem("{}")'.format(self.__module__, self.name)
@@ -44,6 +53,8 @@ class PortItem(QtWidgets.QGraphicsItem):
                              self._height)
 
     def paint(self, painter, option, widget):
+
+
         """
         Draws the circular port.
 

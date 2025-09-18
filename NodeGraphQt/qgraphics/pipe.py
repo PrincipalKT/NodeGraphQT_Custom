@@ -246,7 +246,7 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
             path.lineTo(pos2)
             self.setPath(path)
 
-    def _draw_path_horizontal(self, start_port, pos1, pos2, path):
+    def _draw_path_horizontal(self, start_port, pos1, pos2, path,end_port):
         
         """
         Draws the horizontal path between ports.
@@ -277,17 +277,44 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
         elif self.viewer_pipe_layout() == PipeLayoutEnum.ANGLE.value:
             ctr_offset_x1, ctr_offset_x2 = pos1.x(), pos2.x()
             distance = abs(ctr_offset_x1 - ctr_offset_x2) / 2
-            if start_port.port_type == PortTypeEnum.IN.value:
-                # ctr_offset_x1 -= distance
-                # ctr_offset_x2 += distance
-                ctr_offset_x1 += distance
-                
-                ctr_offset_x2 -= distance
+
+            if not end_port:
+                if start_port.port_type == PortTypeEnum.IN.value:
+                    if not start_port.flipped:
+                        ctr_offset_x1 -= distance
+                    else:
+                        ctr_offset_x1 += distance
+                    ctr_offset_x2 += distance # assuming normal output port
+                    
+                else:
+                    if not start_port.flipped:
+                        ctr_offset_x1 += distance
+                    else:
+                        ctr_offset_x1 -= distance
+                    ctr_offset_x2 -= distance # assuming normal input port
+                    
             else:
-                # ctr_offset_x1 += distance
-                # ctr_offset_x2 -= distance
-                ctr_offset_x1 -= distance
-                ctr_offset_x2 += distance
+                if start_port.port_type == PortTypeEnum.IN.value:
+                    if not start_port.flipped:
+                        ctr_offset_x1 -= distance
+                    else:
+                        ctr_offset_x1 += distance
+                    if not end_port.flipped:
+                        ctr_offset_x2 += distance
+                    else:
+                        ctr_offset_x2 -= distance
+
+                    
+                else:
+                    if not start_port.flipped:
+                        ctr_offset_x1 += distance
+                    else:
+                        ctr_offset_x1 -= distance
+                    if not end_port.flipped:
+                        ctr_offset_x2 -= distance
+                    else:
+                        ctr_offset_x2+= distance
+                
 
             ctr_point1 = QtCore.QPointF(ctr_offset_x1, pos1.y())
             ctr_point2 = QtCore.QPointF(ctr_offset_x2, pos2.y())
@@ -367,7 +394,7 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
         if direction is LayoutDirectionEnum.VERTICAL.value:
             self._draw_path_vertical(start_port, pos1, pos2, path)
         elif direction is LayoutDirectionEnum.HORIZONTAL.value:
-            self._draw_path_horizontal(start_port, pos1, pos2, path)
+            self._draw_path_horizontal(start_port, pos1, pos2, path,end_port)
 
         self._draw_direction_pointer()
 

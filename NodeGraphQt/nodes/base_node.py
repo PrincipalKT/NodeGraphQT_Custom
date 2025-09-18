@@ -422,6 +422,7 @@ class BaseNode(NodeObject):
         port.model.display_name = display_name
         port.model.multi_connection = multi_input
         port.model.locked = locked
+        port.model.flipped = flip_node
         self._inputs.append(port)
         self.model.inputs[port.name()] = port.model
         return port
@@ -464,6 +465,7 @@ class BaseNode(NodeObject):
         port.model.display_name = display_name
         port.model.multi_connection = multi_output
         port.model.locked = locked
+        port.model.flipped = flip_node
         self._outputs.append(port)
         self.model.outputs[port.name()] = port.model
         return port
@@ -639,12 +641,14 @@ class BaseNode(NodeObject):
         [self.add_input(name=port['name'],
                         multi_input=port['multi_connection'],
                         display_name=port['display_name'],
-                        locked=port.get('locked') or False)
+                        locked=port.get('locked') or False,
+                        flip_node=port['flipped'])
          for port in port_data['input_ports']]
         [self.add_output(name=port['name'],
                          multi_output=port['multi_connection'],
                          display_name=port['display_name'],
-                         locked=port.get('locked') or False)
+                         locked=port.get('locked') or False,
+                         flip_node=port['flipped'])
          for port in port_data['output_ports']]
         self._view.draw_node()
 

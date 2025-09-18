@@ -23,6 +23,7 @@ class PortModel(object):
         self.multi_connection = False
         self.visible = True
         self.locked = False
+        self.flipped = False
         self.connected_ports = defaultdict(list)
 
     def __repr__(self):
@@ -389,6 +390,7 @@ class NodeModel(object):
                     'name': name,
                     'multi_connection': model.multi_connection,
                     'display_name': model.display_name,
+                    'flipped':model.flipped
                 })
             connected_ports = model.to_dict['connected_ports']
             if connected_ports:
@@ -399,6 +401,7 @@ class NodeModel(object):
                     'name': name,
                     'multi_connection': model.multi_connection,
                     'display_name': model.display_name,
+                    'flipped':model.flipped
                 })
             connected_ports = model.to_dict['connected_ports']
             if connected_ports:

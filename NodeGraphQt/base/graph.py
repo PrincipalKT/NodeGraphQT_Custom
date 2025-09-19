@@ -1838,7 +1838,7 @@ class NodeGraph(QtCore.QObject):
                     node.set_ports({
                         'input_ports': n_data['input_ports'],
                         'output_ports': n_data['output_ports']
-                    })
+                    },painter_func_ouput_port= self._draw_square_port if self.output_port_shape == 'square' else None)
 
         # build the connections.
         for connection in data.get('connections', []):

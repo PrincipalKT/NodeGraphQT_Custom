@@ -587,7 +587,7 @@ class BaseNode(NodeObject):
         """
         return self.model.port_deletion_allowed
 
-    def set_ports(self, port_data):
+    def set_ports(self, port_data,painter_func_ouput_port = None):
         """
         Create node input and output ports from serialized port data.
 
@@ -648,7 +648,8 @@ class BaseNode(NodeObject):
                          multi_output=port['multi_connection'],
                          display_name=port['display_name'],
                          locked=port.get('locked') or False,
-                         flip_node=port['flipped'])
+                         flip_node=port['flipped'],
+                         painter_func=painter_func_ouput_port)
          for port in port_data['output_ports']]
         self._view.draw_node()
 

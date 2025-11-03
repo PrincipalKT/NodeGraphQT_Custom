@@ -35,10 +35,19 @@ class NodeTextItem(QtWidgets.QGraphicsTextItem):
         """
         if event.key() == QtCore.Qt.Key_Return:
             current_text = self.toPlainText()
-            self.set_node_name(current_text)
+
+            #IMP : Calls Node.py method in SteagSIM
+            self.node.get_base_node_ref().set_display_name(current_text)
+
+            #NOTE : Actual library code (commented out)
+            # self.set_node_name(current_text)
+
             self.set_editable(False)
         elif event.key() == QtCore.Qt.Key_Escape:
-            self.setPlainText(self.node.name)
+
+            #IMP : Calls Node.py method in SteagSIM
+            self.setPlainText(self.node.get_base_node_ref().display_name())
+
             self.set_editable(False)
         super(NodeTextItem, self).keyPressEvent(event)
 
@@ -50,7 +59,12 @@ class NodeTextItem(QtWidgets.QGraphicsTextItem):
             event (QtGui.QFocusEvent):
         """
         current_text = self.toPlainText()
-        self.set_node_name(current_text)
+        #IMP : Calls Node.py method in SteagSIM
+        self.node.get_base_node_ref().set_display_name(current_text)
+
+        #NOTE : Actual library code (commented out)
+        # self.set_node_name(current_text)
+        
         self.set_editable(False)
         super(NodeTextItem, self).focusOutEvent(event)
 
@@ -75,6 +89,8 @@ class NodeTextItem(QtWidgets.QGraphicsTextItem):
             cursor.clearSelection()
             self.setTextCursor(cursor)
 
+
+    #NOTE : This is just sitting here
     def set_node_name(self, name):
         """
         Updates the node name through the node "NodeViewer().node_name_changed"

@@ -91,6 +91,11 @@ class NodeObject(object):
             )
 
         self._view = _NodeItem()
+
+        #WARN : Assumes NodeItem class as passed qgraphics_item
+        self._view.set_base_node_ref(self)
+
+
         self._view.type_ = self.type_
         self._view.name = self.model.name
         self._view.id = self._model.id

@@ -11,6 +11,7 @@ from NodeGraphQt.qgraphics.node_abstract import AbstractNodeItem
 from NodeGraphQt.qgraphics.node_overlay_disabled import XDisabledItem
 from NodeGraphQt.qgraphics.node_text_item import NodeTextItem
 from NodeGraphQt.qgraphics.port import CustomPortItem, PortItem
+import weakref
 
 
 class NodeItem(AbstractNodeItem):
@@ -40,6 +41,17 @@ class NodeItem(AbstractNodeItem):
         self._widgets = OrderedDict()
         self._proxy_mode = False
         self._proxy_mode_threshold = 70
+
+
+    
+    def set_base_node_ref(self,base_node):
+        # to be able to call methods on the base node
+        # WD-43 : I created this for display name feature 
+        # so that NodeTextItem can call base node functions
+        self._base_node_weak_ref = weakref.proxy(base_node)
+
+    def get_base_node_ref(self):
+        return self._base_node_weak_ref
         
 
     def post_init(self, viewer, pos=None):

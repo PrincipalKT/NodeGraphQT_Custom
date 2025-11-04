@@ -131,3 +131,18 @@ class NodeTextItem(QtWidgets.QGraphicsTextItem):
             NodeItem: parent node qgraphics item.
         """
         return self.parentItem()
+    
+    def _on_display_name_property_changed(self):
+        """Hook to update the textItem graphic on UI when the display name property is changed.
+        
+        One of the multiple ways to do it.
+        """
+
+        #HACK : On app init, I am getting method_or_str as method and on later edits as str
+        base_ref = self.node.get_base_node_ref()
+        method_or_str = base_ref.display_name()
+        if callable(method_or_str):
+            result = method_or_str()
+        elif type(method_or_str) == str:
+            result = method_or_str
+        self.setPlainText(result)

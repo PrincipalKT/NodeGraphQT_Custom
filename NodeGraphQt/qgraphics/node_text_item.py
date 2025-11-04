@@ -138,11 +138,7 @@ class NodeTextItem(QtWidgets.QGraphicsTextItem):
         One of the multiple ways to do it.
         """
 
-        #HACK : On app init, I am getting method_or_str as method and on later edits as str
+
         base_ref = self.node.get_base_node_ref()
-        method_or_str = base_ref.display_name()
-        if callable(method_or_str):
-            result = method_or_str()
-        elif type(method_or_str) == str:
-            result = method_or_str
+        result = base_ref.display_name()
         self.setPlainText(result)

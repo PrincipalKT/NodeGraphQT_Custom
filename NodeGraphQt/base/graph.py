@@ -1377,6 +1377,10 @@ class NodeGraph(QtCore.QObject):
             self._undo_stack.endMacro()
         else:
             undo_cmd.redo()
+        
+        #IMP : I assume that this add_node() function always succeed in adding a node
+        # and this signal would be tapped by total node counting function 
+        self.node_added_signal_custom.emit()
 
     def delete_node(self, node, push_undo=True):
         """

@@ -1274,59 +1274,93 @@ class NodeViewer(QtWidgets.QGraphicsView):
         self.clear_key_state()
         BaseDialog.message_dialog(parent, text, title, dialog_icon, custom_icon)
 
+    #NOTE: `ext` param remains just to not break the API
     def load_dialog(self, current_dir=None, ext=None, parent=None):
         """
         Prompt node viewer file load dialog widget.
 
         Args:
             current_dir (str): directory path starting point. (optional)
-            ext (str): custom file extension filter type. (optional)
             parent (QtWidgets.QObject): override dialog parent. (optional)
+
+        Deprecated:
+        --------------
+            ext (str)[**No longer used**]: custom file extension filter type. This parameter
+            is kept for backward compatibility only and has no effect.
 
         Returns:
             str: selected file path.
         """
+
+        if ext:
+            import warnings
+            warnings.warn("'ext' param has no effect",DeprecationWarning,stacklevel=2)
         parent = parent or self
 
         self.clear_key_state()
-        ext = '*{} '.format(ext) if ext else ''
-        ext_filter = ';;'.join([
-            'Node Graph ({}*json)'.format(ext), 'All Files (*)'
-        ])
-        file_dlg = FileDialog.getOpenFileName(
-            parent, 'Open File', current_dir, ext_filter)
-        file = file_dlg[0] or None
-        return file
+        filters = {
+            'SteagSIM Simulation File (*.ssim)': 'ssim',
+            'JSON File (*.json)': 'json',
+            'All Files (*)': ''
+        }
 
+        file_path, selected_filter = FileDialog.getOpenFileName(
+            parent,
+            'Open File',
+            current_dir,
+            ';;'.join(filters.keys())
+        )
+
+        if not file_path:
+            return None, None
+
+        ext = filters[selected_filter]
+        return file_path, ext
+
+    #NOTE: `ext` param remains just to not break the API
     def save_dialog(self, current_dir=None, ext=None, parent=None):
         """
         Prompt node viewer file save dialog widget.
 
         Args:
             current_dir (str): directory path starting point. (optional)
-            ext (str): custom file extension filter type. (optional)
             parent (QtWidgets.QObject): override dialog parent. (optional)
+        
+        Deprecated:
+        --------------
+            ext (str)[**No longer used**]: custom file extension filter type. This parameter
+            is kept for backward compatibility only and has no effect.
 
         Returns:
             str: selected file path.
         """
+        if ext:
+            import warnings
+            warnings.warn("'ext' param has no effect",DeprecationWarning,stacklevel=2)
         parent = parent or self
 
         self.clear_key_state()
-        ext_label = '*{} '.format(ext) if ext else ''
-        ext_type = '.{}'.format(ext) if ext else '.json'
-        ext_map = {'Node Graph ({}*json)'.format(ext_label): ext_type,
-                   'All Files (*)': ''}
-        file_dlg = FileDialog.getSaveFileName(
-            parent, 'Save Session', current_dir, ';;'.join(ext_map.keys()))
-        file_path = file_dlg[0]
-        if not file_path:
-            return
-        ext = ext_map[file_dlg[1]]
-        if ext and not file_path.endswith(ext):
-            file_path += ext
+        filters = {
+            'SteagSIM Simulation File (*.ssim)': 'ssim',
+            'JSON File (*.json)': 'json',
+            'All Files (*)': ''
+        }
 
-        return file_path
+        file_path, selected_filter = FileDialog.getSaveFileName(
+            parent,
+            'Save Session',
+            current_dir,
+            ';;'.join(filters.keys())
+        )
+
+        if not file_path:
+            return None, None
+
+        ext = filters[selected_filter]
+        if ext and not file_path.endswith(f'.{ext}'):
+            file_path += f'.{ext}'
+
+        return file_path, ext
 
     def all_pipes(self):
         """

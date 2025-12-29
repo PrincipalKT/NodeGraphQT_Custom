@@ -82,11 +82,11 @@ class BaseDialog(object):
             dlg.setIconPixmap(pixmap)
         else:
             if dialog_icon == 'information':
-                dlg.setIcon(dlg.Information)
+                dlg.setIcon(dlg.Icon.Information)
             elif dialog_icon == 'warning':
-                dlg.setIcon(dlg.Warning)
+                dlg.setIcon(dlg.Icon.Warning)
             elif dialog_icon == 'critical':
-                dlg.setIcon(dlg.Critical)
+                dlg.setIcon(dlg.Icon.Critical)
 
         result = dlg.exec_()
         return bool(result == QtWidgets.QMessageBox.Yes)

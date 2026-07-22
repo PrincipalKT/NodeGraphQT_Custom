@@ -1838,6 +1838,14 @@ class NodeGraph(QtCore.QObject):
                 nodes[n_id] = node
                 self.add_node(node, n_data.get('pos'), inherite_graph_style=adjust_graph_style)
 
+                # Fix for copied nodes showing the previous node's name in display_name
+                custom_data = n_data.get('custom', {})
+                if custom_data.get('display_name') == n_data.get('name'):
+                    if hasattr(node, 'set_display_name'):
+                        node.set_display_name(node.name())
+                    else:
+                        node.set_property('display_name', node.name())
+
                 if n_data.get('port_deletion_allowed', None):
                     node.set_ports({
                         'input_ports': n_data['input_ports'],

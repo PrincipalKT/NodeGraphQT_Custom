@@ -137,8 +137,6 @@ class NodeTextItem(QtWidgets.QGraphicsTextItem):
         
         One of the multiple ways to do it.
         """
-
-
         base_ref = self.node.get_base_node_ref()
         result = base_ref.display_name()
         self.setPlainText(result)

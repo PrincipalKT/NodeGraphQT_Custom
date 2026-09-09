@@ -36,6 +36,8 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
         }
         self._width = NodeEnum.WIDTH.value
         self._height = NodeEnum.HEIGHT.value
+        self._custom_width = None
+        self._custom_height = None
 
     def __repr__(self):
         return '{}.{}(\'{}\')'.format(
@@ -121,7 +123,12 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
 
     @width.setter
     def width(self, width=0.0):
-        self._width = width
+        if width is None:
+            self._custom_width = None
+        else:
+            self.prepareGeometryChange()
+            self._width = float(width)
+            self._custom_width = float(width)
 
     @property
     def height(self):
@@ -129,7 +136,12 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
 
     @height.setter
     def height(self, height=0.0):
-        self._height = height
+        if height is None:
+            self._custom_height = None
+        else:
+            self.prepareGeometryChange()
+            self._height = float(height)
+            self._custom_height = float(height)
 
     @property
     def color(self):
@@ -257,6 +269,8 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
         node_attrs = list(self._properties.keys()) + ['width', 'height', 'pos']
         for name, value in node_dict.items():
             if name in node_attrs:
+                if name in ['width', 'height'] and value is None:
+                    continue
                 # "node.pos" conflicted with "QGraphicsItem.pos()"
                 # so it's refactored to "xy_pos".
                 if name == 'pos':

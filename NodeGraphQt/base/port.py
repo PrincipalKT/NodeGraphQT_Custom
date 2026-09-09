@@ -100,6 +100,67 @@ class Port(object):
         """
         return self.model.name
 
+    def port_pos(self):
+        """
+        Returns the port (x, y) coordinates relative to the parent node origin at bottom-left (0, 0).
+
+        Returns:
+            tuple(float, float): (x, y) coordinates where (0,0) is bottom-left.
+        """
+        if self.model.port_x is not None and self.model.port_y is not None:
+            return self.model.port_x, self.model.port_y
+        node_h = self.node().view._height if self.node() and hasattr(self.node(), 'view') and self.node().view else 0.0
+        return self.view.x(), node_h - self.view.y()
+
+    def set_port_pos(self, x, y):
+        """
+        Set the custom position of the port relative to the parent node origin at bottom-left (0, 0).
+
+        Args:
+            x (float): x position in pixels from left edge.
+            y (float): y position in pixels from bottom edge.
+        """
+        val_x = float(x) if x is not None else None
+        val_y = float(y) if y is not None else None
+        self.model.port_x = val_x
+        self.model.port_y = val_y
+        self.view.port_x = val_x
+        self.view.port_y = val_y
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            self.node().view.draw_node()
+
+    @property
+    def port_x(self):
+        return self.model.port_x
+
+    @port_x.setter
+    def port_x(self, val):
+        self.set_port_pos(val, self.model.port_y)
+
+    @property
+    def port_y(self):
+        return self.model.port_y
+
+    @port_y.setter
+    def port_y(self, val):
+        self.set_port_pos(self.model.port_x, val)
+
+    @property
+    def PortX(self):
+        return self.port_x
+
+    @PortX.setter
+    def PortX(self, val):
+        self.port_x = val
+
+    @property
+    def PortY(self):
+        return self.port_y
+
+    @PortY.setter
+    def PortY(self, val):
+        self.port_y = val
+
     def visible(self):
         """
         Port visible in the node graph.

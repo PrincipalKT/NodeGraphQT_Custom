@@ -32,7 +32,48 @@ class PortItem(QtWidgets.QGraphicsItem):
         self._multi_connection = False
         self._locked = False
         self._flipped = False
+        self._port_x = None
+        self._port_y = None
     
+    @property
+    def port_x(self):
+        return self._port_x
+
+    @port_x.setter
+    def port_x(self, value):
+        self._port_x = float(value) if value is not None else None
+
+    @property
+    def port_y(self):
+        return self._port_y
+
+    @port_y.setter
+    def port_y(self, value):
+        self._port_y = float(value) if value is not None else None
+
+    @property
+    def PortX(self):
+        return self._port_x
+
+    @PortX.setter
+    def PortX(self, value):
+        self._port_x = float(value) if value is not None else None
+
+    @property
+    def PortY(self):
+        return self._port_y
+
+    @PortY.setter
+    def PortY(self, value):
+        self._port_y = float(value) if value is not None else None
+
+    def has_custom_pos(self):
+        return self._port_x is not None and self._port_y is not None
+
+    def set_custom_pos(self, x, y):
+        self._port_x = float(x) if x is not None else None
+        self._port_y = float(y) if y is not None else None
+
     @property
     def flipped(self):
         return self._flipped

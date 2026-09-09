@@ -55,6 +55,10 @@ class NodeGraph(QtCore.QObject):
     :parameters: :class:`NodeGraphQt.NodeObject`
     :emits: created node
     """
+    node_added_signal_custom = QtCore.Signal()
+    """
+    Custom signal triggered when a node is added to the node graph.
+    """
     nodes_deleted = QtCore.Signal(list)
     """
     Signal triggered when nodes have been deleted from the node graph.
@@ -1187,7 +1191,8 @@ class NodeGraph(QtCore.QObject):
         self.nodes_registered.emit(nodes)
 
     def create_node(self, node_type, name=None, selected=True, color=None,
-                    text_color=None, pos=None, push_undo=True):
+                    text_color=None, pos=None, push_undo=True,
+                    width=None, height=None):
         """
         Create a new node in the node graph.
 
@@ -1202,6 +1207,8 @@ class NodeGraph(QtCore.QObject):
             text_color (tuple or str): text color ``(255, 255, 255)`` or ``"#FFFFFF"``.
             pos (list[int, int]): initial x, y position for the node (default: ``(0, 0)``).
             push_undo (bool): register the command to the undo stack. (default: True)
+            width (float, optional): custom node width.
+            height (float, optional): custom node height.
 
         Returns:
             BaseNode: the created instance of the node.
@@ -1271,6 +1278,11 @@ class NodeGraph(QtCore.QObject):
                 node.model.text_color = format_color(text_color)
             if pos:
                 node.model.pos = [float(pos[0]), float(pos[1])]
+
+            if width is not None:
+                node.set_width(width, push_undo=False)
+            if height is not None:
+                node.set_height(height, push_undo=False)
 
             # initial node direction layout.
             node.model.layout_direction = self.layout_direction()
@@ -1380,7 +1392,8 @@ class NodeGraph(QtCore.QObject):
         
         #IMP : I assume that this add_node() function always succeed in adding a node
         # and this signal would be tapped by total node counting function 
-        self.node_added_signal_custom.emit()
+        if hasattr(self, 'node_added_signal_custom'):
+            self.node_added_signal_custom.emit()
 
     def delete_node(self, node, push_undo=True):
         """

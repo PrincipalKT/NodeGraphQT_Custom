@@ -74,6 +74,16 @@ class NodeObject(object):
     :meta hide-value:
     """
 
+    NODE_WIDTH = None
+    """
+    Initial custom node width.
+    """
+
+    NODE_HEIGHT = None
+    """
+    Initial custom node height.
+    """
+
     def __init__(self, qgraphics_item=None):
         """
         Args:
@@ -95,11 +105,22 @@ class NodeObject(object):
         #WARN : Assumes NodeItem class as passed qgraphics_item
         self._view.set_base_node_ref(self)
 
-
         self._view.type_ = self.type_
         self._view.name = self.model.name
         self._view.id = self._model.id
         self._view.layout_direction = self._model.layout_direction
+
+        initial_width = getattr(self, 'NODE_WIDTH', None)
+        initial_height = getattr(self, 'NODE_HEIGHT', None)
+
+        if initial_width is not None:
+            self._view.width = initial_width
+            self._model.width = float(initial_width)
+            self._model.custom_width = float(initial_width)
+        if initial_height is not None:
+            self._view.height = initial_height
+            self._model.height = float(initial_height)
+            self._model.custom_height = float(initial_height)
 
     def __repr__(self):
         return '<{}("{}") object at {}>'.format(
@@ -372,7 +393,7 @@ class NodeObject(object):
 
     def get_property(self, name):
         """
-        Return the node custom property.
+        Return the node property.
 
         Args:
             name (str): name of the property.
@@ -385,9 +406,51 @@ class NodeObject(object):
 
         return self.model.get_property(name)
 
+    def width(self):
+        """
+        Returns the node width.
+
+        Returns:
+            float: node width.
+        """
+        if self.view:
+            return self.view.width
+        return self.model.width or 0.0
+
+    def height(self):
+        """
+        Returns the node height.
+
+        Returns:
+            float: node height.
+        """
+        if self.view:
+            return self.view.height
+        return self.model.height or 0.0
+
+    def set_width(self, width, push_undo=True):
+        """
+        Set the node width.
+
+        Args:
+            width (float): node width.
+            push_undo (bool): register the command to the undo stack. (default: True)
+        """
+        self.set_property('width', width, push_undo=push_undo)
+
+    def set_height(self, height, push_undo=True):
+        """
+        Set the node height.
+
+        Args:
+            height (float): node height.
+            push_undo (bool): register the command to the undo stack. (default: True)
+        """
+        self.set_property('height', height, push_undo=push_undo)
+
     def set_property(self, name, value, push_undo=True):
         """
-        Set the value on the node custom property.
+        Set the value on the node property.
 
         Note:
             When setting the node ``"name"`` property a new unique name will be
@@ -398,7 +461,6 @@ class NodeObject(object):
             value (object): property data (python built in types).
             push_undo (bool): register the command to the undo stack. (default: True)
         """
-
         # prevent signals from causing an infinite loop.
         if self.get_property(name) == value:
             return
@@ -414,6 +476,10 @@ class NodeObject(object):
                 undo_cmd.setText(
                     'renamed "{}" to "{}"'.format(self.name(), value)
                 )
+            elif name in ['width', 'height']:
+                undo_cmd.setText(
+                    'set "{}:{}" to {}'.format(self.name(), name, value)
+                )
             if push_undo:
                 undo_stack = self.graph.undo_stack()
                 undo_stack.push(undo_cmd)
@@ -423,6 +489,8 @@ class NodeObject(object):
             if hasattr(self.view, name):
                 setattr(self.view, name, value)
             self.model.set_property(name, value)
+            if name in ['width', 'height']:
+                self.view.draw_node()
 
         # redraw the node for custom properties.
         if self.model.is_custom_property(name):

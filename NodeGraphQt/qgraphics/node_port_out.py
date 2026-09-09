@@ -21,9 +21,15 @@ class PortOutputNodeItem(NodeItem):
         self._x_item.text = 'Port Locked'
 
     def _set_base_size(self, add_w=0.0, add_h=0.0):
-        width, height = self.calc_size(add_w, add_h)
-        self._width = width + 60
-        self._height = height if height >= 60 else 60
+        calc_w, calc_h = self.calc_size(add_w, add_h)
+        if self._custom_width is not None:
+            self._width = self._custom_width
+        else:
+            self._width = calc_w + 60
+        if self._custom_height is not None:
+            self._height = self._custom_height
+        else:
+            self._height = calc_h if calc_h >= 60 else 60
 
     def _paint_horizontal(self, painter, option, widget):
         self.auto_switch_mode()

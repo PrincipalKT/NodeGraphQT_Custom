@@ -41,11 +41,16 @@ class PropertyChangedCmd(QtWidgets.QUndoCommand):
                 view.widgets[name].set_value(value)
 
         # view properties.
-        if name in view.properties.keys():
+        if name in view.properties.keys() or name in ['width', 'height', 'custom_width', 'custom_height']:
             # remap "pos" to "xy_pos" node view has pre-existing pos method.
             if name == 'pos':
                 name = 'xy_pos'
             setattr(view, name, value)
+
+        if name in ['width', 'height']:
+            view.draw_node()
+            model.width = view.width
+            model.height = view.height
 
         # emit property changed signal.
         graph = self.node.graph

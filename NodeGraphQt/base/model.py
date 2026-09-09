@@ -24,6 +24,8 @@ class PortModel(object):
         self.visible = True
         self.locked = False
         self.flipped = False
+        self.port_x = None
+        self.port_y = None
         self.connected_ports = defaultdict(list)
 
     def __repr__(self):
@@ -73,8 +75,10 @@ class NodeModel(object):
         self.disabled = False
         self.selected = False
         self.visible = True
-        self.width = 100.0
-        self.height = 80.0
+        self.width = None
+        self.height = None
+        self.custom_width = None
+        self.custom_height = None
         self.pos = [0.0, 0.0]
         self.layout_direction = LayoutDirectionEnum.HORIZONTAL.value
 
@@ -185,6 +189,17 @@ class NodeModel(object):
             name (str): property name.
             value (object): property value.
         """
+        if name == 'width':
+            val = float(value) if value is not None else None
+            self.width = val
+            self.custom_width = val
+            return
+        elif name == 'height':
+            val = float(value) if value is not None else None
+            self.height = val
+            self.custom_height = val
+            return
+
         if name in self.properties.keys():
             setattr(self, name, value)
         elif name in self._custom_prop.keys():
@@ -200,6 +215,11 @@ class NodeModel(object):
         Returns:
             object: property value.
         """
+        if name == 'width':
+            return self.width
+        elif name == 'height':
+            return self.height
+
         if name in self.properties.keys():
             return self.properties[name]
         return self._custom_prop.get(name)

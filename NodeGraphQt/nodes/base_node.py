@@ -385,7 +385,8 @@ class BaseNode(NodeObject):
 
     def add_input(self, name='input', multi_input=False, display_name=True,
                   color=None, locked=False, painter_func=None, flip_node=False,
-                  port_x=None, port_y=None, PortX=None, PortY=None):
+                  port_x=None, port_y=None, PortX=None, PortY=None,
+                  label=None, label_pos='AUTO'):
         """
         Add input :class:`Port` to node.
 
@@ -405,6 +406,8 @@ class BaseNode(NodeObject):
             port_y (float): custom y position in px relative to component origin (0, 0).
             PortX (float): alias for port_x.
             PortY (float): alias for port_y.
+            label (str or None): custom text label to display instead of name.
+            label_pos (str): directional position ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR').
 
         Returns:
             NodeGraphQt.Port: the created port object.
@@ -419,7 +422,8 @@ class BaseNode(NodeObject):
         port_args = [name, multi_input, display_name, locked]
         if painter_func and callable(painter_func):
             port_args.append(painter_func)
-        view = self.view.add_input(*port_args, flip_node=flip_node, port_x=eff_x, port_y=eff_y)
+        view = self.view.add_input(*port_args, flip_node=flip_node, port_x=eff_x, port_y=eff_y,
+                                   label=label, label_pos=label_pos)
 
         if color:
             view.color = color
@@ -434,13 +438,16 @@ class BaseNode(NodeObject):
         port.model.flipped = flip_node
         port.model.port_x = float(eff_x) if eff_x is not None else None
         port.model.port_y = float(eff_y) if eff_y is not None else None
+        port.model.label = label
+        port.model.label_pos = label_pos
         self._inputs.append(port)
         self.model.inputs[port.name()] = port.model
         return port
 
     def add_output(self, name='output', multi_output=True, display_name=True,
                    color=None, locked=False, painter_func=None, flip_node=False,
-                   port_x=None, port_y=None, PortX=None, PortY=None):
+                   port_x=None, port_y=None, PortX=None, PortY=None,
+                   label=None, label_pos='AUTO'):
         """
         Add output :class:`Port` to node.
 
@@ -460,6 +467,8 @@ class BaseNode(NodeObject):
             port_y (float): custom y position in px relative to component origin (0, 0).
             PortX (float): alias for port_x.
             PortY (float): alias for port_y.
+            label (str or None): custom text label to display instead of name.
+            label_pos (str): directional position ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR').
 
         Returns:
             NodeGraphQt.Port: the created port object.
@@ -474,7 +483,8 @@ class BaseNode(NodeObject):
         port_args = [name, multi_output, display_name, locked]
         if painter_func and callable(painter_func):
             port_args.append(painter_func)
-        view = self.view.add_output(*port_args, flip_node=flip_node, port_x=eff_x, port_y=eff_y)
+        view = self.view.add_output(*port_args, flip_node=flip_node, port_x=eff_x, port_y=eff_y,
+                                    label=label, label_pos=label_pos)
 
         if color:
             view.color = color
@@ -488,6 +498,8 @@ class BaseNode(NodeObject):
         port.model.flipped = flip_node
         port.model.port_x = float(eff_x) if eff_x is not None else None
         port.model.port_y = float(eff_y) if eff_y is not None else None
+        port.model.label = label
+        port.model.label_pos = label_pos
         self._outputs.append(port)
         self.model.outputs[port.name()] = port.model
         return port

@@ -20,6 +20,14 @@ PIPE_STYLES = {
     PipeEnum.DRAW_TYPE_DOTTED.value: QtCore.Qt.DotLine
 }
 
+_PIPE_ID_COUNTER = 0
+
+
+def _get_next_pipe_id():
+    global _PIPE_ID_COUNTER
+    _PIPE_ID_COUNTER += 1
+    return _PIPE_ID_COUNTER
+
 
 class PipeItem(QtWidgets.QGraphicsPathItem):
     """
@@ -28,6 +36,13 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
 
     def __init__(self, input_port=None, output_port=None):
         super(PipeItem, self).__init__()
+        self._pipe_id = _get_next_pipe_id()
+        self._p1 = None
+        self._p2 = None
+        self._bridge_distances = []
+        self._crossing_pipes = set()
+        self._in_draw_path = False
+
         self.setZValue(Z_VAL_PIPE)
         self.setAcceptHoverEvents(True)
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable)
@@ -130,25 +145,56 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
                 self._dir_pointer.setPen(pen)
                 self._dir_pointer.setBrush(color.darker(200))
 
-        self._dir_pointer.setVisible(True)
-        loc_pt = self.path().pointAtPercent(0.49)
-        tgt_pt = self.path().pointAtPercent(0.51)
-        radians = math.atan2(tgt_pt.y() - loc_pt.y(),
-                             tgt_pt.x() - loc_pt.x())
-        degrees = math.degrees(radians) - 90
-        self._dir_pointer.setRotation(degrees)
-        self._dir_pointer.setPos(self.path().pointAtPercent(0.5))
+        if (self.viewer_pipe_layout() in (PipeLayoutEnum.STRAIGHT.value, None)
+                and getattr(self, '_p1', None) and getattr(self, '_p2', None)):
+            p1 = self._p1
+            p2 = self._p2
+            dx = p2.x() - p1.x()
+            dy = p2.y() - p1.y()
+            length = math.hypot(dx, dy)
+            if length < 10.0:
+                self._dir_pointer.setVisible(False)
+                return
 
-        cen_x = self.path().pointAtPercent(0.5).x()
-        cen_y = self.path().pointAtPercent(0.5).y()
-        dist = math.hypot(tgt_pt.x() - cen_x, tgt_pt.y() - cen_y)
+            radians = math.atan2(dy, dx)
+            degrees = math.degrees(radians) - 90
+            self._dir_pointer.setRotation(degrees)
 
-        self._dir_pointer.setVisible(True)
-        if dist < 0.3:
-            self._dir_pointer.setVisible(False)
-            return
-        if dist < 1.0:
-            self._dir_pointer.setScale(dist)
+            best_frac = 0.5
+            bridge_distances = getattr(self, '_bridge_distances', [])
+            if bridge_distances:
+                candidate_fracs = [0.5, 0.4, 0.6, 0.35, 0.65, 0.25, 0.75]
+                clear_zone = 16.0
+                for frac in candidate_fracs:
+                    dist = frac * length
+                    if not any(abs(dist - bd) < clear_zone for bd in bridge_distances):
+                        best_frac = frac
+                        break
+
+            pos = QtCore.QPointF(p1.x() + best_frac * dx, p1.y() + best_frac * dy)
+            self._dir_pointer.setPos(pos)
+            self._dir_pointer.setScale(1.0)
+            self._dir_pointer.setVisible(True)
+        else:
+            self._dir_pointer.setVisible(True)
+            loc_pt = self.path().pointAtPercent(0.49)
+            tgt_pt = self.path().pointAtPercent(0.51)
+            radians = math.atan2(tgt_pt.y() - loc_pt.y(),
+                                 tgt_pt.x() - loc_pt.x())
+            degrees = math.degrees(radians) - 90
+            self._dir_pointer.setRotation(degrees)
+            self._dir_pointer.setPos(self.path().pointAtPercent(0.5))
+
+            cen_x = self.path().pointAtPercent(0.5).x()
+            cen_y = self.path().pointAtPercent(0.5).y()
+            dist = math.hypot(tgt_pt.x() - cen_x, tgt_pt.y() - cen_y)
+
+            self._dir_pointer.setVisible(True)
+            if dist < 0.3:
+                self._dir_pointer.setVisible(False)
+                return
+            if dist < 1.0:
+                self._dir_pointer.setScale(dist)
 
     def _draw_path_cycled_vertical(self, start_port, pos1, pos2, path):
         """
@@ -323,6 +369,183 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
             path.lineTo(pos2)
             self.setPath(path)
 
+    def _draw_path_straight_with_bridges(self, pos1, pos2, start_port, end_port, path):
+        """
+        Draw a straight line from pos1 to pos2 with inverted U bridges jumping over
+        older crossing pipes (like in electrical schematics).
+        """
+        self._in_draw_path = True
+        try:
+            BRIDGE_RADIUS = 8.0
+            BRIDGE_HEIGHT = 8.0
+
+            dx = pos2.x() - pos1.x()
+            dy = pos2.y() - pos1.y()
+            L_A = math.hypot(dx, dy)
+
+            # Too short for a bridge or not in scene
+            if L_A < (2.0 * BRIDGE_RADIUS + 6.0) or not self.scene():
+                path.lineTo(pos2)
+                self.setPath(path)
+                self._bridge_distances = []
+                self._draw_direction_pointer()
+                return
+
+            min_ax = min(pos1.x(), pos2.x()) - BRIDGE_RADIUS
+            max_ax = max(pos1.x(), pos2.x()) + BRIDGE_RADIUS
+            min_ay = min(pos1.y(), pos2.y()) - BRIDGE_RADIUS
+            max_ay = max(pos1.y(), pos2.y()) + BRIDGE_RADIUS
+
+            is_live = isinstance(self, LivePipeItem)
+            bridges = []
+            current_crossing_pipes = set()
+
+            # Collect ports associated with self to avoid bridging at shared junctions
+            self_ports = set()
+            if start_port:
+                self_ports.add(start_port)
+            if end_port:
+                self_ports.add(end_port)
+            if self.input_port:
+                self_ports.add(self.input_port)
+            if self.output_port:
+                self_ports.add(self.output_port)
+
+            for item in self.scene().items():
+                if not isinstance(item, PipeItem) or item is self:
+                    continue
+                if isinstance(item, LivePipeItem):
+                    continue
+                if not item.isVisible():
+                    continue
+                q1 = getattr(item, '_p1', None)
+                q2 = getattr(item, '_p2', None)
+                if q1 is None or q2 is None:
+                    continue
+
+                # Quick bounding box check
+                min_bx = min(q1.x(), q2.x())
+                max_bx = max(q1.x(), q2.x())
+                min_by = min(q1.y(), q2.y())
+                max_by = max(q1.y(), q2.y())
+                if max_bx < min_ax or min_bx > max_ax or max_by < min_ay or min_by > max_ay:
+                    continue
+
+                # Check port sharing (lines meeting at same port don't bridge)
+                item_ports = set()
+                if item.input_port:
+                    item_ports.add(item.input_port)
+                if item.output_port:
+                    item_ports.add(item.output_port)
+                if self_ports and (self_ports & item_ports):
+                    continue
+
+                # Segment-segment intersection
+                sx = q2.x() - q1.x()
+                sy = q2.y() - q1.y()
+                denom = dx * sy - dy * sx
+                if abs(denom) < 1e-6:
+                    continue
+
+                q_dx = q1.x() - pos1.x()
+                q_dy = q1.y() - pos1.y()
+                t = (q_dx * sy - q_dy * sx) / denom
+                u = (q_dx * dy - q_dy * dx) / denom
+
+                dist_a = t * L_A
+                L_B = math.hypot(sx, sy)
+                dist_b = u * L_B
+
+                # Must intersect strictly away from endpoints
+                if not (BRIDGE_RADIUS + 4.0 <= dist_a <= L_A - (BRIDGE_RADIUS + 4.0)):
+                    continue
+                if not (4.0 <= dist_b <= L_B - 4.0):
+                    continue
+
+                current_crossing_pipes.add(item)
+                if not is_live:
+                    item._crossing_pipes.add(self)
+
+                # The one being currently built creates the inverted U:
+                # LivePipeItem has _pipe_id = inf, so it always jumps over permanent pipes.
+                # Between permanent pipes, the newer pipe (larger _pipe_id) jumps.
+                if is_live or getattr(self, '_pipe_id', 0) > getattr(item, '_pipe_id', 0):
+                    Ix = pos1.x() + t * dx
+                    Iy = pos1.y() + t * dy
+                    bridges.append((dist_a, QtCore.QPointF(Ix, Iy)))
+
+            # Sort bridges along segment from pos1 to pos2
+            bridges.sort(key=lambda b: b[0])
+            filtered_bridges = []
+            last_d = -1e9
+            for dist, pt in bridges:
+                if dist - last_d >= 2.0 * BRIDGE_RADIUS:
+                    filtered_bridges.append((dist, pt))
+                    last_d = dist
+
+            self._bridge_distances = [b[0] for b in filtered_bridges]
+
+            if not filtered_bridges:
+                path.lineTo(pos2)
+            else:
+                u_x = dx / L_A
+                u_y = dy / L_A
+
+                if abs(u_x) > 1e-4:
+                    if u_x > 0:
+                        n_x, n_y = u_y, -u_x
+                    else:
+                        n_x, n_y = -u_y, u_x
+                else:
+                    n_x, n_y = 1.0, 0.0
+
+                R = BRIDGE_RADIUS
+                H = BRIDGE_HEIGHT
+                ku = 0.15
+                kh = 4.0 / 3.0
+
+                for dist, pt in filtered_bridges:
+                    Ax = pt.x() - R * u_x
+                    Ay = pt.y() - R * u_y
+                    path.lineTo(Ax, Ay)
+
+                    Bx = pt.x() + R * u_x
+                    By = pt.y() + R * u_y
+
+                    C1x = Ax + ku * R * u_x + kh * H * n_x
+                    C1y = Ay + ku * R * u_y + kh * H * n_y
+                    C2x = Bx - ku * R * u_x + kh * H * n_x
+                    C2y = By - ku * R * u_y + kh * H * n_y
+
+                    path.cubicTo(
+                        QtCore.QPointF(C1x, C1y),
+                        QtCore.QPointF(C2x, C2y),
+                        QtCore.QPointF(Bx, By)
+                    )
+
+                path.lineTo(pos2)
+
+            self.setPath(path)
+            self._draw_direction_pointer()
+
+            # Refresh crossing pipes that need update (newer pipes jumping over self)
+            if not is_live:
+                old_crossing = self._crossing_pipes - current_crossing_pipes
+                for p in old_crossing:
+                    p._crossing_pipes.discard(self)
+
+                pipes_to_refresh = (self._crossing_pipes | current_crossing_pipes) - {self}
+                self._crossing_pipes = current_crossing_pipes
+                for p in pipes_to_refresh:
+                    if (
+                        p.scene() and
+                        getattr(p, '_pipe_id', 0) > getattr(self, '_pipe_id', 0) and
+                        not getattr(p, '_in_draw_path', False)
+                    ):
+                        p.draw_path(p.input_port, p.output_port)
+        finally:
+            self._in_draw_path = False
+
     def draw_path(self, start_port, end_port=None, cursor_pos=None):
         """
         Draws the path between ports.
@@ -363,6 +586,9 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
             if not is_visible:
                 return
 
+        self._p1 = QtCore.QPointF(pos1)
+        self._p2 = QtCore.QPointF(pos2)
+
         line = QtCore.QLineF(pos1, pos2)
         path = QtGui.QPainterPath()
 
@@ -385,10 +611,8 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
 
         path.moveTo(line.x1(), line.y1())
 
-        if self.viewer_pipe_layout() == PipeLayoutEnum.STRAIGHT.value:
-            path.lineTo(pos2)
-            self.setPath(path)
-            self._draw_direction_pointer()
+        if self.viewer_pipe_layout() in (PipeLayoutEnum.STRAIGHT.value, None):
+            self._draw_path_straight_with_bridges(pos1, pos2, start_port, end_port, path)
             return
 
         if direction is LayoutDirectionEnum.VERTICAL.value:
@@ -402,6 +626,9 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
         """
         reset the pipe initial path position.
         """
+        self._p1 = None
+        self._p2 = None
+        self._bridge_distances = []
         path = QtGui.QPainterPath(QtCore.QPointF(0.0, 0.0))
         self.setPath(path)
         self._draw_direction_pointer()
@@ -571,12 +798,22 @@ class PipeItem(QtWidgets.QGraphicsPathItem):
         self._style = style
 
     def delete(self):
+        crossing_to_notify = list(getattr(self, '_crossing_pipes', []))
+        for p in crossing_to_notify:
+            p._crossing_pipes.discard(self)
+        self._crossing_pipes.clear()
         if self.input_port and self.input_port.connected_pipes:
             self.input_port.remove_pipe(self)
         if self.output_port and self.output_port.connected_pipes:
             self.output_port.remove_pipe(self)
         if self.scene():
             self.scene().removeItem(self)
+        for p in crossing_to_notify:
+            try:
+                if p.scene() and not getattr(p, '_in_draw_path', False):
+                    p.draw_path(p.input_port, p.output_port)
+            except Exception:
+                pass
 
 
 class LivePipeItem(PipeItem):
@@ -586,6 +823,7 @@ class LivePipeItem(PipeItem):
 
     def __init__(self):
         super(LivePipeItem, self).__init__()
+        self._pipe_id = float('inf')
         self.setZValue(Z_VAL_NODE_WIDGET + 1)
 
         self.color = PipeEnum.ACTIVE_COLOR.value

@@ -597,9 +597,73 @@ class NodeItem(AbstractNodeItem):
         else:
             raise RuntimeError('Node graph layout direction not valid!')
 
+    def _calculate_port_text_pos(self, port, text, width, height, gap=3.0):
+        pos_dir = getattr(port, 'label_pos', 'AUTO')
+        if pos_dir is None:
+            pos_dir = 'AUTO'
+        pos_dir = str(pos_dir).upper().strip().replace('-', '').replace('_', '')
+
+        # Center of the visual port circle in parent (NodeItem) coordinates
+        cx = port.x() + port.boundingRect().width() / 2.0
+        cy = port.y() + port.boundingRect().height() / 2.0
+
+        # Visual circle radius (PortItem draws circle with size / 1.8)
+        rx = getattr(port, 'circle_radius', None)
+        if rx is None:
+            rx = getattr(port, '_width', 22.0) / 1.8 / 2.0
+        ry = rx
+
+        # Visual outer edges of the port circle
+        circle_left = cx - rx
+        circle_right = cx + rx
+        circle_top = cy - ry
+        circle_bottom = cy + ry
+
+        txt_rect = text.boundingRect()
+        tw = txt_rect.width()
+        th = txt_rect.height()
+
+        # 45-degree diagonal offset from center to circle perimeter
+        diag_x = rx * 0.7071
+        diag_y = ry * 0.7071
+
+        if pos_dir in ('T', 'TOP'):
+            return cx - tw / 2.0, circle_top - th - gap
+        elif pos_dir in ('B', 'BOTTOM'):
+            return cx - tw / 2.0, circle_bottom + gap
+        elif pos_dir in ('L', 'LEFT'):
+            return circle_left - tw - gap, cy - th / 2.0
+        elif pos_dir in ('R', 'RIGHT'):
+            return circle_right + gap, cy - th / 2.0
+        elif pos_dir in ('TL', 'TOPLEFT'):
+            return (cx - diag_x) - tw - gap, (cy - diag_y) - th - gap
+        elif pos_dir in ('TR', 'TOPRIGHT'):
+            return (cx + diag_x) + gap, (cy - diag_y) - th - gap
+        elif pos_dir in ('BL', 'BOTTOMLEFT'):
+            return (cx - diag_x) - tw - gap, (cy + diag_y) + gap
+        elif pos_dir in ('BR', 'BOTTOMRIGHT'):
+            return (cx + diag_x) + gap, (cy + diag_y) + gap
+        else:  # 'AUTO'
+            if port.has_custom_pos():
+                if port.port_x <= width / 2.0:
+                    return circle_right + gap, cy - th / 2.0
+                else:
+                    return circle_left - tw - gap, cy - th / 2.0
+            else:
+                if port.port_type == PortTypeEnum.IN.value:
+                    if getattr(port, 'flipped', False):
+                        return circle_left - tw - gap, cy - th / 2.0
+                    else:
+                        return circle_right + gap, cy - th / 2.0
+                else:
+                    if getattr(port, 'flipped', False):
+                        return circle_right + gap, cy - th / 2.0
+                    else:
+                        return circle_left - tw - gap, cy - th / 2.0
+
     def _align_ports_horizontal(self, v_offset):
         width = self._width
-        txt_offset = PortEnum.CLICK_FALLOFF.value - 2
+        gap = 3.0
         spacing = 1
 
         # Position custom-positioned ports (origin at bottom-left: (0, 0))
@@ -618,12 +682,8 @@ class NodeItem(AbstractNodeItem):
 
                 text = self.get_input_text_item(port) if port.port_type == PortTypeEnum.IN.value else self.get_output_text_item(port)
                 if text and text.isVisible():
-                    txt_width = text.boundingRect().width() - txt_offset
-                    if qt_x <= width / 2.0:
-                        txt_x = port.x() + port_width - txt_offset
-                    else:
-                        txt_x = port.x() - txt_width
-                    text.setPos(txt_x, port.y() - 1.5)
+                    txt_x, txt_y = self._calculate_port_text_pos(port, text, width, self._height, gap=gap)
+                    text.setPos(txt_x, txt_y)
 
         inputs_unflipped = [p for p in self.inputs if p.isVisible() and not p.flipped and not p.has_custom_pos()]
         inputs_flipped = [p for p in self.inputs if p.isVisible() and p.flipped and not p.has_custom_pos()]
@@ -641,53 +701,52 @@ class NodeItem(AbstractNodeItem):
             if inputs_unflipped and not layer_left_pos_occupied:
                 port = inputs_unflipped.pop()
                 text = self.get_input_text_item(port)
-                txt_width = text.boundingRect().width() - txt_offset
                 port_width = port.boundingRect().width()
                 port_height = port.boundingRect().height()
                 port_x = (port_width / 2) * -1
                 port.setPos(port_x, port_y_left)
-                txt_x = port.boundingRect().width() / 2 - txt_offset
-                text.setPos(txt_x, port.y() - 1.5)
+                if text and text.isVisible():
+                    txt_x, txt_y = self._calculate_port_text_pos(port, text, width, self._height, gap=gap)
+                    text.setPos(txt_x, txt_y)
                 layer_left_pos_occupied = True
                 port_y_left += port_height + spacing
             
             if outputs_flipped and not layer_left_pos_occupied:
                 port = outputs_flipped.pop()
                 text = self.get_output_text_item(port)
-                txt_width = text.boundingRect().width() - txt_offset
                 port_width = port.boundingRect().width()
                 port_height = port.boundingRect().height()
                 port_x = (port_width / 2) * -1
                 port.setPos(port_x, port_y_left)
-                txt_x = port.boundingRect().width() / 2 - txt_offset
-                text.setPos(txt_x, port.y() - 1.5)
+                if text and text.isVisible():
+                    txt_x, txt_y = self._calculate_port_text_pos(port, text, width, self._height, gap=gap)
+                    text.setPos(txt_x, txt_y)
                 layer_left_pos_occupied = True
                 port_y_left += port_height + spacing
 
             if inputs_flipped and not layer_right_pos_occupied:
                 port = inputs_flipped.pop()
                 text = self.get_input_text_item(port)
-                txt_width = text.boundingRect().width() - txt_offset
                 port_width = port.boundingRect().width()
                 port_height = port.boundingRect().height()
                 port_x = width - (port_width / 2)
                 port.setPos(port_x, port_y_right)
-                txt_x = port.x() - txt_width
-                text.setPos(txt_x, port.y() - 1.5)
+                if text and text.isVisible():
+                    txt_x, txt_y = self._calculate_port_text_pos(port, text, width, self._height, gap=gap)
+                    text.setPos(txt_x, txt_y)
                 layer_right_pos_occupied = True
                 port_y_right += port_height + spacing
 
             if outputs_unflipped and not layer_right_pos_occupied:
                 port = outputs_unflipped.pop()
                 text = self.get_output_text_item(port)
-                txt_width = text.boundingRect().width() - txt_offset
                 port_width = port.boundingRect().width()
                 port_height = port.boundingRect().height()
                 port_x = width - (port_width / 2)
-                
                 port.setPos(port_x, port_y_right)
-                txt_x = port.x() - txt_width
-                text.setPos(txt_x, port.y() - 1.5)
+                if text and text.isVisible():
+                    txt_x, txt_y = self._calculate_port_text_pos(port, text, width, self._height, gap=gap)
+                    text.setPos(txt_x, txt_y)
                 layer_right_pos_occupied = True
                 port_y_right += port_height + spacing
             
@@ -804,12 +863,13 @@ class NodeItem(AbstractNodeItem):
         height = self._text_item.boundingRect().height() + 4.0
 
         # update port text items in visibility.
+        show_global = self.show_port_labels
         for port, text in self._input_items.items():
             if port.isVisible():
-                text.setVisible(port.display_name)
+                text.setVisible(port.display_name and show_global)
         for port, text in self._output_items.items():
             if port.isVisible():
-                text.setVisible(port.display_name)
+                text.setVisible(port.display_name and show_global)
 
         # setup initial base size.
         self._set_base_size(add_h=height)
@@ -932,18 +992,42 @@ class NodeItem(AbstractNodeItem):
         else:
             port_text_visible = visible
 
+        show_global = self.show_port_labels
         # input port text visibility.
         for port, text in self._input_items.items():
             if port.display_name:
-                text.setVisible(port_text_visible)
+                text.setVisible(port_text_visible and show_global)
 
         # output port text visibility.
         for port, text in self._output_items.items():
             if port.display_name:
-                text.setVisible(port_text_visible)
+                text.setVisible(port_text_visible and show_global)
 
         self._text_item.setVisible(visible)
         self._icon_item.setVisible(visible)
+
+    @property
+    def show_port_labels(self):
+        if hasattr(self, '_show_port_labels') and self._show_port_labels is not None:
+            return self._show_port_labels
+        if hasattr(self, 'node') and self.node and hasattr(self.node, 'graph') and self.node.graph:
+            return getattr(self.node.graph, 'show_port_labels', True)
+        try:
+            import core.global_state as gs
+            return getattr(gs, 'SHOW_PORT_LABELS', True)
+        except Exception:
+            return True
+
+    @show_port_labels.setter
+    def show_port_labels(self, val):
+        self._show_port_labels = bool(val)
+        for port, text in self._input_items.items():
+            if port.isVisible():
+                text.setVisible(port.display_name and self._show_port_labels)
+        for port, text in self._output_items.items():
+            if port.isVisible():
+                text.setVisible(port.display_name and self._show_port_labels)
+        self.update()
 
     @property
     def icon(self):
@@ -1085,10 +1169,15 @@ class NodeItem(AbstractNodeItem):
         Returns:
             PortItem: port qgraphics item.
         """
-        text = QtWidgets.QGraphicsTextItem(port.name, self)
+        disp_text = getattr(port, 'label', None)
+        if disp_text is None:
+            disp_text = port.name
+        text = QtWidgets.QGraphicsTextItem(disp_text, self)
+        text.document().setDocumentMargin(1.5)
         text.font().setPointSize(8)
         text.setFont(text.font())
-        text.setVisible(port.display_name)
+        show_global = getattr(self, 'show_port_labels', True)
+        text.setVisible(port.display_name and show_global)
         text.setCacheMode(ITEM_CACHE_MODE)
         if port.port_type == PortTypeEnum.IN.value:
             self._input_items[port] = text
@@ -1100,7 +1189,8 @@ class NodeItem(AbstractNodeItem):
 
     def add_input(self, name='input', multi_port=False, display_name=True,
                   locked=False, painter_func=None, flip_node=False,
-                  port_x=None, port_y=None, PortX=None, PortY=None):
+                  port_x=None, port_y=None, PortX=None, PortY=None,
+                  label=None, label_pos='AUTO'):
         """
         Adds a port qgraphics item into the node with the "port_type" set as
         IN_PORT.
@@ -1116,6 +1206,8 @@ class NodeItem(AbstractNodeItem):
             port_y (float): custom y position in px relative to node origin (0, 0).
             PortX (float): alias for port_x.
             PortY (float): alias for port_y.
+            label (str or None): custom text label to display.
+            label_pos (str): directional position ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR').
 
         Returns:
             PortItem: input port qgraphics item.
@@ -1130,6 +1222,8 @@ class NodeItem(AbstractNodeItem):
         port.display_name = display_name
         port.locked = locked
         port.flipped = flip_node
+        port.label = label
+        port.label_pos = label_pos
         eff_x = PortX if PortX is not None else port_x
         eff_y = PortY if PortY is not None else port_y
         if eff_x is not None:
@@ -1140,7 +1234,8 @@ class NodeItem(AbstractNodeItem):
 
     def add_output(self, name='output', multi_port=False, display_name=True,
                    locked=False, painter_func=None, flip_node=False,
-                   port_x=None, port_y=None, PortX=None, PortY=None):
+                   port_x=None, port_y=None, PortX=None, PortY=None,
+                   label=None, label_pos='AUTO'):
         """
         Adds a port qgraphics item into the node with the "port_type" set as
         OUT_PORT.
@@ -1156,6 +1251,8 @@ class NodeItem(AbstractNodeItem):
             port_y (float): custom y position in px relative to node origin (0, 0).
             PortX (float): alias for port_x.
             PortY (float): alias for port_y.
+            label (str or None): custom text label to display.
+            label_pos (str): directional position ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR').
 
         Returns:
             PortItem: output port qgraphics item.
@@ -1170,6 +1267,8 @@ class NodeItem(AbstractNodeItem):
         port.display_name = display_name
         port.locked = locked
         port.flipped = flip_node
+        port.label = label
+        port.label_pos = label_pos
         eff_x = PortX if PortX is not None else port_x
         eff_y = PortY if PortY is not None else port_y
         if eff_x is not None:
@@ -1188,8 +1287,9 @@ class NodeItem(AbstractNodeItem):
         """
         port.setParentItem(None)
         text.setParentItem(None)
-        self.scene().removeItem(port)
-        self.scene().removeItem(text)
+        if self.scene():
+            self.scene().removeItem(port)
+            self.scene().removeItem(text)
         del port
         del text
 

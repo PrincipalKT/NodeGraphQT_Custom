@@ -161,6 +161,68 @@ class Port(object):
     def PortY(self, val):
         self.port_y = val
 
+    def display_name(self):
+        """Returns whether this port's name/label is displayed on the node."""
+        return self.model.display_name
+
+    def set_display_name(self, display=True):
+        """
+        Sets whether this port's name/label is displayed on the node.
+
+        Args:
+            display (bool): True to show, False to hide.
+        """
+        val = bool(display)
+        self.model.display_name = val
+        self.view.display_name = val
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            text_item = (self.node().view.get_input_text_item(self.view)
+                         if self.type_() == PortTypeEnum.IN.value
+                         else self.node().view.get_output_text_item(self.view))
+            if text_item:
+                show_global = getattr(self.node().view, 'show_port_labels', True)
+                text_item.setVisible(val and show_global)
+            self.node().view.draw_node()
+
+    def label(self):
+        """Returns the custom display text for this port, or its name if not set."""
+        return self.model.label if self.model.label is not None else self.name()
+
+    def set_label(self, label):
+        """
+        Set a custom display text for this port on the canvas.
+
+        Args:
+            label (str or None): Custom text to display, or None to revert to port name.
+        """
+        val = str(label) if label is not None else None
+        self.model.label = val
+        self.view.label = val
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            text_item = (self.node().view.get_input_text_item(self.view)
+                         if self.type_() == PortTypeEnum.IN.value
+                         else self.node().view.get_output_text_item(self.view))
+            if text_item:
+                text_item.setPlainText(val if val is not None else self.name())
+            self.node().view.draw_node()
+
+    def label_pos(self):
+        """Returns the directional text alignment ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR')."""
+        return getattr(self.model, 'label_pos', 'AUTO')
+
+    def set_label_pos(self, pos):
+        """
+        Set the directional text position for this port.
+
+        Args:
+            pos (str): 'AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', or 'BR'.
+        """
+        val = str(pos).upper().strip() if pos is not None else 'AUTO'
+        self.model.label_pos = val
+        self.view.label_pos = val
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            self.node().view.draw_node()
+
     def visible(self):
         """
         Port visible in the node graph.

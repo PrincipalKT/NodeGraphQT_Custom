@@ -1580,6 +1580,33 @@ class NodeGraph(QtCore.QObject):
         """
         return list(self._model.nodes.values())
 
+    @property
+    def show_port_labels(self):
+        """Returns whether port labels are shown globally on this graph."""
+        return getattr(self, '_show_port_labels', True)
+
+    @show_port_labels.setter
+    def show_port_labels(self, val):
+        self.set_show_port_labels(val)
+
+    def set_show_port_labels(self, show: bool):
+        """
+        Globally show or hide port labels across all nodes on this graph.
+
+        Args:
+            show (bool): True to show labels (respecting individual port display_name),
+                         False to hide all port labels.
+        """
+        self._show_port_labels = bool(show)
+        try:
+            import core.global_state as gs
+            gs.SHOW_PORT_LABELS = bool(show)
+        except Exception:
+            pass
+        for node in self.all_nodes():
+            if hasattr(node, 'view') and node.view:
+                node.view.show_port_labels = bool(show)
+
     def selected_nodes(self):
         """
         Return all selected nodes that are in the node graph.

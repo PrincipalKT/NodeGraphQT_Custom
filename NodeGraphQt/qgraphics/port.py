@@ -34,6 +34,8 @@ class PortItem(QtWidgets.QGraphicsItem):
         self._flipped = False
         self._port_x = None
         self._port_y = None
+        self._label = None
+        self._label_pos = 'AUTO'
     
     @property
     def port_x(self):
@@ -87,6 +89,17 @@ class PortItem(QtWidgets.QGraphicsItem):
 
     def __repr__(self):
         return '{}.PortItem("{}")'.format(self.__module__, self.name)
+
+    @property
+    def circle_radius(self):
+        """Radius of the visual circle drawn by paint()."""
+        return (self._width / 1.8) / 2.0
+
+    @property
+    def circle_center(self):
+        """Visual center (cx, cy) of the port circle in parent item coordinates."""
+        return (self.x() + self.boundingRect().width() / 2.0,
+                self.y() + self.boundingRect().height() / 2.0)
 
     def boundingRect(self):
         return QtCore.QRectF(0.0, 0.0,
@@ -245,6 +258,22 @@ class PortItem(QtWidgets.QGraphicsItem):
     @display_name.setter
     def display_name(self, display=True):
         self._display_name = display
+
+    @property
+    def label(self):
+        return self._label
+
+    @label.setter
+    def label(self, value):
+        self._label = str(value) if value is not None else None
+
+    @property
+    def label_pos(self):
+        return self._label_pos
+
+    @label_pos.setter
+    def label_pos(self, value):
+        self._label_pos = str(value).upper() if value is not None else 'AUTO'
 
     @property
     def color(self):

@@ -26,6 +26,8 @@ class PortModel(object):
         self.flipped = False
         self.port_x = None
         self.port_y = None
+        self.label = None
+        self.label_pos = 'AUTO'
         self.connected_ports = defaultdict(list)
 
     def __repr__(self):

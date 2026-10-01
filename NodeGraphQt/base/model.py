@@ -81,6 +81,9 @@ class NodeModel(object):
         self.height = None
         self.custom_width = None
         self.custom_height = None
+        self.flipped_x = False
+        self.flipped_y = False
+        self.rotation = 0.0
         self.pos = [0.0, 0.0]
         self.layout_direction = LayoutDirectionEnum.HORIZONTAL.value
 
@@ -116,6 +119,9 @@ class NodeModel(object):
             'selected': NodePropWidgetEnum.HIDDEN.value,
             'width': NodePropWidgetEnum.HIDDEN.value,
             'height': NodePropWidgetEnum.HIDDEN.value,
+            'flipped_x': NodePropWidgetEnum.HIDDEN.value,
+            'flipped_y': NodePropWidgetEnum.HIDDEN.value,
+            'rotation': NodePropWidgetEnum.HIDDEN.value,
             'pos': NodePropWidgetEnum.HIDDEN.value,
             'layout_direction': NodePropWidgetEnum.HIDDEN.value,
             'inputs': NodePropWidgetEnum.HIDDEN.value,
@@ -201,6 +207,12 @@ class NodeModel(object):
             self.height = val
             self.custom_height = val
             return
+        elif name in ['flipped_x', 'flipped_y']:
+            setattr(self, name, bool(value))
+            return
+        elif name == 'rotation':
+            self.rotation = max(-360.0, min(360.0, float(value)))
+            return
 
         if name in self.properties.keys():
             setattr(self, name, value)
@@ -221,6 +233,10 @@ class NodeModel(object):
             return self.width
         elif name == 'height':
             return self.height
+        elif name in ['flipped_x', 'flipped_y']:
+            return getattr(self, name, False)
+        elif name == 'rotation':
+            return getattr(self, 'rotation', 0.0)
 
         if name in self.properties.keys():
             return self.properties[name]

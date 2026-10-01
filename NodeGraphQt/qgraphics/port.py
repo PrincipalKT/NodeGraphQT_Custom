@@ -101,10 +101,43 @@ class PortItem(QtWidgets.QGraphicsItem):
         return (self.x() + self.boundingRect().width() / 2.0,
                 self.y() + self.boundingRect().height() / 2.0)
 
+    @property
+    def click_falloff(self):
+        """Scale click falloff proportionally with port width."""
+        return max(4.0, self._width * (15.0 / 22.0))
+
     def boundingRect(self):
         return QtCore.QRectF(0.0, 0.0,
-                             self._width + PortEnum.CLICK_FALLOFF.value,
+                             self._width + self.click_falloff,
                              self._height)
+
+    def set_radius(self, radius):
+        """
+        Sets the visual radius (in pixels) of the port circle/square.
+        Since visual diameter is _width / 1.8, _width = radius * 3.6.
+        """
+        r = float(radius)
+        if abs(self.circle_radius - r) < 0.001:
+            return
+        self.prepareGeometryChange()
+        self._width = r * 3.6
+        self._height = r * 3.6
+        if self.connected_pipes:
+            self.redraw_connected_pipes()
+        self.update()
+
+    def set_size(self, width, height):
+        """Sets internal width and height of the port."""
+        w = float(width)
+        h = float(height)
+        if abs(self._width - w) < 0.001 and abs(self._height - h) < 0.001:
+            return
+        self.prepareGeometryChange()
+        self._width = w
+        self._height = h
+        if self.connected_pipes:
+            self.redraw_connected_pipes()
+        self.update()
 
     def paint(self, painter, option, widget):
 

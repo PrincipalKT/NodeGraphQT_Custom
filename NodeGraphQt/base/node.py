@@ -223,6 +223,12 @@ class NodeObject(object):
                 setattr(self.model, name, val)
             if name in self.model.custom_properties.keys():
                 self.model.custom_properties[name] = val
+        if hasattr(self.view, 'flipped_x'):
+            self.model.set_property('flipped_x', self.view.flipped_x)
+        if hasattr(self.view, 'flipped_y'):
+            self.model.set_property('flipped_y', self.view.flipped_y)
+        if hasattr(self.view, 'rotation'):
+            self.model.set_property('rotation', self.view.rotation)
 
     def update(self):
         """
@@ -476,7 +482,7 @@ class NodeObject(object):
                 undo_cmd.setText(
                     'renamed "{}" to "{}"'.format(self.name(), value)
                 )
-            elif name in ['width', 'height']:
+            elif name in ['width', 'height', 'flipped_x', 'flipped_y', 'rotation']:
                 undo_cmd.setText(
                     'set "{}:{}" to {}'.format(self.name(), name, value)
                 )
@@ -491,10 +497,70 @@ class NodeObject(object):
             self.model.set_property(name, value)
             if name in ['width', 'height']:
                 self.view.draw_node()
+            elif name in ['flipped_x', 'flipped_y']:
+                if hasattr(self.view, 'align_ports'):
+                    self.view.align_ports()
+                self.view.draw_node()
+            elif name == 'rotation':
+                if hasattr(self.view, 'set_rotation'):
+                    self.view.set_rotation(value)
 
         # redraw the node for custom properties.
         if self.model.is_custom_property(name):
             self.view.draw_node()
+
+    @property
+    def rotation(self):
+        """
+        Returns the node rotation in degrees (-360.0 to 360.0).
+
+        Returns:
+            float: node rotation in degrees.
+        """
+        if self.view and hasattr(self.view, 'rotation'):
+            return self.view.rotation
+        return getattr(self.model, 'rotation', 0.0)
+
+    @rotation.setter
+    def rotation(self, value):
+        self.set_rotation(value)
+
+    def set_rotation(self, deg=0.0, push_undo=True):
+        """
+        Set the node rotation in degrees (-360.0 to 360.0).
+
+        Args:
+            deg (float): rotation in degrees.
+            push_undo (bool): register command to undo stack. (default: True)
+        """
+        deg = max(-360.0, min(360.0, float(deg)))
+        self.set_property('rotation', deg, push_undo=push_undo)
+
+    @property
+    def flipped_x(self):
+        if hasattr(self.view, 'flipped_x'):
+            return self.view.flipped_x
+        return getattr(self.model, 'flipped_x', False)
+
+    @flipped_x.setter
+    def flipped_x(self, value):
+        val = bool(value)
+        self.model.set_property('flipped_x', val)
+        if hasattr(self.view, 'flipped_x'):
+            self.view.flipped_x = val
+
+    @property
+    def flipped_y(self):
+        if hasattr(self.view, 'flipped_y'):
+            return self.view.flipped_y
+        return getattr(self.model, 'flipped_y', False)
+
+    @flipped_y.setter
+    def flipped_y(self, value):
+        val = bool(value)
+        self.model.set_property('flipped_y', val)
+        if hasattr(self.view, 'flipped_y'):
+            self.view.flipped_y = val
 
     def has_property(self, name):
         """

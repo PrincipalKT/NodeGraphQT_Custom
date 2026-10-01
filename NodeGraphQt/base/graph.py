@@ -1791,6 +1791,19 @@ class NodeGraph(QtCore.QObject):
                             PortTypeEnum.IN.value: [n_id, pname],
                             PortTypeEnum.OUT.value: [conn_id, conn_prt]
                         }
+                        node_obj = self.get_node_by_id(n_id)
+                        if node_obj:
+                            in_p = node_obj.inputs().get(pname)
+                            if in_p and in_p.view:
+                                for p_item in getattr(in_p.view, 'connected_pipes', []):
+                                    out_p_view = p_item.output_port
+                                    if out_p_view and out_p_view.node.id == conn_id and out_p_view.name == conn_prt:
+                                        if p_item.waypoints:
+                                            pipe['waypoints'] = [
+                                                [round(wp.x(), 1), round(wp.y(), 1)]
+                                                for wp in p_item.waypoints
+                                            ]
+                                        break
                         if pipe not in serial_data['connections']:
                             serial_data['connections'].append(pipe)
 
@@ -1801,6 +1814,19 @@ class NodeGraph(QtCore.QObject):
                             PortTypeEnum.OUT.value: [n_id, pname],
                             PortTypeEnum.IN.value: [conn_id, conn_prt]
                         }
+                        node_obj = self.get_node_by_id(n_id)
+                        if node_obj:
+                            out_p = node_obj.outputs().get(pname)
+                            if out_p and out_p.view:
+                                for p_item in getattr(out_p.view, 'connected_pipes', []):
+                                    in_p_view = p_item.input_port
+                                    if in_p_view and in_p_view.node.id == conn_id and in_p_view.name == conn_prt:
+                                        if p_item.waypoints:
+                                            pipe['waypoints'] = [
+                                                [round(wp.x(), 1), round(wp.y(), 1)]
+                                                for wp in p_item.waypoints
+                                            ]
+                                        break
                         if pipe not in serial_data['connections']:
                             serial_data['connections'].append(pipe)
 
@@ -1892,6 +1918,15 @@ class NodeGraph(QtCore.QObject):
                         'output_ports': n_data['output_ports']
                     },painter_func_ouput_port= self.output_port_painter if self.output_port_shape == 'square' else None)
 
+                if 'flipped_x' in n_data:
+                    node.flipped_x = bool(n_data['flipped_x'])
+                if 'flipped_y' in n_data:
+                    node.flipped_y = bool(n_data['flipped_y'])
+                if 'rotation' in n_data:
+                    node.set_rotation(float(n_data['rotation']), push_undo=False)
+                if hasattr(node, 'view') and hasattr(node.view, 'align_ports'):
+                    node.view.align_ports()
+
         # build the connections.
         for connection in data.get('connections', []):
             nid, pname = connection.get('in', ('', ''))
@@ -1914,20 +1949,32 @@ class NodeGraph(QtCore.QObject):
                                         in_port.model.multi_connection])
                 if allow_connection:
                     self._undo_stack.push(
-                        PortConnectedCmd(in_port, out_port, emit_signal=False)
+                        PortConnectedCmd(
+                            in_port, out_port, emit_signal=False,
+                            waypoints=connection.get('waypoints')
+                        )
                     )
 
                 # Run on_input_connected to ensure connections are fully set up
                 # after deserialization.
                 in_node.on_input_connected(in_port, out_port)
 
-        node_objs = nodes.values()
+        node_objs = list(nodes.values())
         if relative_pos:
             self._viewer.move_nodes([n.view for n in node_objs])
             [setattr(n.model, 'pos', n.view.xy_pos) for n in node_objs]
         elif pos:
             self._viewer.move_nodes([n.view for n in node_objs], pos=pos)
             [setattr(n.model, 'pos', n.view.xy_pos) for n in node_objs]
+
+        # Ensure all ports and connected pipes reflect the flipped state on pasted nodes
+        for n in node_objs:
+            if hasattr(n, 'view') and hasattr(n.view, 'align_ports'):
+                n.view.align_ports()
+                n.view.update()
+            for p in list(n.output_ports()) + list(n.input_ports()):
+                if hasattr(p, 'view') and hasattr(p.view, 'redraw_connected_pipes'):
+                    p.view.redraw_connected_pipes()
 
         return node_objs
 
@@ -2784,7 +2831,10 @@ class SubGraph(NodeGraph):
 
             if in_port and out_port:
                 self._undo_stack.push(
-                    PortConnectedCmd(in_port, out_port, emit_signal=False)
+                    PortConnectedCmd(
+                        in_port, out_port, emit_signal=False,
+                        waypoints=connection.get('waypoints')
+                    )
                 )
 
         node_objs = list(nodes.values())

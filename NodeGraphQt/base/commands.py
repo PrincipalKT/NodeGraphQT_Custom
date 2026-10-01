@@ -41,7 +41,7 @@ class PropertyChangedCmd(QtWidgets.QUndoCommand):
                 view.widgets[name].set_value(value)
 
         # view properties.
-        if name in view.properties.keys() or name in ['width', 'height', 'custom_width', 'custom_height']:
+        if name in view.properties.keys() or name in ['width', 'height', 'custom_width', 'custom_height', 'flipped_x', 'flipped_y', 'rotation']:
             # remap "pos" to "xy_pos" node view has pre-existing pos method.
             if name == 'pos':
                 name = 'xy_pos'
@@ -51,6 +51,14 @@ class PropertyChangedCmd(QtWidgets.QUndoCommand):
             view.draw_node()
             model.width = view.width
             model.height = view.height
+        elif name in ['flipped_x', 'flipped_y']:
+            if hasattr(view, 'align_ports'):
+                view.align_ports()
+            view.update()
+        elif name == 'rotation':
+            if hasattr(view, 'set_rotation'):
+                view.set_rotation(value)
+            model.rotation = view.rotation
 
         # emit property changed signal.
         graph = self.node.graph
@@ -301,13 +309,31 @@ class PortConnectedCmd(QtWidgets.QUndoCommand):
         src_port (NodeGraphQt.Port): source port.
         trg_port (NodeGraphQt.Port): target port.
         emit_signal (bool): emit port connection signals.
+        waypoints (list[list[float]] or list[QtCore.QPointF], optional): list of intermediate waypoints.
     """
 
-    def __init__(self, src_port, trg_port, emit_signal):
+    def __init__(self, src_port, trg_port, emit_signal=True, waypoints=None):
         QtWidgets.QUndoCommand.__init__(self)
         self.source = src_port
         self.target = trg_port
         self.emit_signal = emit_signal
+        if waypoints is not None:
+            self.waypoints = [
+                [round(pt[0], 1), round(pt[1], 1)] if isinstance(pt, (list, tuple))
+                else [round(pt.x(), 1), round(pt.y(), 1)]
+                for pt in waypoints
+            ]
+        else:
+            viewer = getattr(self.source.node().graph, '_viewer', None)
+            live_wps = getattr(viewer, '_live_waypoints', None)
+            if live_wps:
+                self.waypoints = [
+                    [round(pt[0], 1), round(pt[1], 1)] if isinstance(pt, (list, tuple))
+                    else [round(pt.x(), 1), round(pt.y(), 1)]
+                    for pt in live_wps
+                ]
+            else:
+                self.waypoints = None
 
     def undo(self):
         src_model = self.source.model
@@ -345,7 +371,14 @@ class PortConnectedCmd(QtWidgets.QUndoCommand):
         src_model.connected_ports[trg_id].append(self.target.name())
         trg_model.connected_ports[src_id].append(self.source.name())
 
+        viewer = getattr(self.source.node().graph, '_viewer', None)
+        if viewer and self.waypoints:
+            viewer._pending_pipe_waypoints = self.waypoints
+
         self.source.view.connect_to(self.target.view)
+
+        if viewer:
+            viewer._pending_pipe_waypoints = None
 
         # emit "port_connected" signal from the parent graph.
         if self.emit_signal:

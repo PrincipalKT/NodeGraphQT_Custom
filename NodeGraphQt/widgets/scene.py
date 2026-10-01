@@ -140,6 +140,11 @@ class NodeScene(QtWidgets.QGraphicsScene):
             self.viewer().sceneMouseReleaseEvent(event)
         super(NodeScene, self).mouseReleaseEvent(event)
 
+    def clear(self):
+        if hasattr(self, '_pipe_spatial_index') and self._pipe_spatial_index:
+            self._pipe_spatial_index.clear()
+        super(NodeScene, self).clear()
+
     def viewer(self):
         return self.views()[0] if self.views() else None
 

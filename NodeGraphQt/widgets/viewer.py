@@ -153,6 +153,9 @@ class NodeViewer(QtWidgets.QGraphicsView):
         self.SHIFT_state = False
         self.COLLIDING_state = False
 
+        self._live_waypoints = []
+        self._pending_pipe_waypoints = None
+
         # connection constrains.
         # TODO: maybe this should be a reference to the graph model instead?
         self.accept_connection_types = None
@@ -350,6 +353,9 @@ class NodeViewer(QtWidgets.QGraphicsView):
         super(NodeViewer, self).resizeEvent(event)
 
     def contextMenuEvent(self, event):
+        if self._LIVE_PIPE.isVisible():
+            return
+
         self.RMB_state = False
 
         ctx_menu = None
@@ -365,9 +371,14 @@ class NodeViewer(QtWidgets.QGraphicsView):
                 node = nodes[0]
                 ctx_menu = ctx_menus['nodes'].get_menu(node.type_, node.id)
                 if ctx_menu:
-                    for action in ctx_menu.actions():
-                        if not action.menu():
-                            action.node_id = node.id
+                    def _assign_node_id(menu, n_id):
+                        for action in menu.actions():
+                            sub = action.menu()
+                            if sub:
+                                _assign_node_id(sub, n_id)
+                            else:
+                                action.node_id = n_id
+                    _assign_node_id(ctx_menu, node.id)
                     prompted_data = 'nodes', node.id
 
         if not ctx_menu:
@@ -404,6 +415,15 @@ class NodeViewer(QtWidgets.QGraphicsView):
 
         # cursor pos.
         map_pos = self.mapToScene(event.pos())
+
+        if self._LIVE_PIPE.isVisible():
+            if event.button() == QtCore.Qt.RightButton:
+                self._LIVE_PIPE.add_waypoint(map_pos)
+                self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=map_pos)
+                return
+            elif event.button() == QtCore.Qt.LeftButton:
+                super(NodeViewer, self).mousePressEvent(event)
+                return
 
         # pipe slicer enabled.
         if self.pipe_slicing:
@@ -475,6 +495,7 @@ class NodeViewer(QtWidgets.QGraphicsView):
         selection.update(self.selected_nodes())
 
         # update the recorded node positions.
+        self._drag_suspended_bridges = False
         self._node_positions.update({n: n.xy_pos for n in selection})
 
         # show selection marquee.
@@ -562,6 +583,18 @@ class NodeViewer(QtWidgets.QGraphicsView):
         if moved_nodes and not self.COLLIDING_state:
             self.moved_nodes.emit(moved_nodes)
 
+        # Restore suspended bridges after interactive drag and recalculate on moved pipes
+        if getattr(self, '_drag_suspended_bridges', False):
+            self._drag_suspended_bridges = False
+            PipeItem._SUSPEND_BRIDGES = False
+            if moved_nodes:
+                pipes_to_redraw = set()
+                for node_item in moved_nodes.keys():
+                    for port in getattr(node_item, 'inputs', []) + getattr(node_item, 'outputs', []):
+                        pipes_to_redraw.update(getattr(port, 'connected_pipes', []))
+                for pipe in pipes_to_redraw:
+                    pipe.draw_path(pipe.input_port, pipe.output_port, notify_crossings=True)
+
         # reset recorded positions.
         self._node_positions = {}
 
@@ -631,6 +664,9 @@ class NodeViewer(QtWidgets.QGraphicsView):
                             node.selected = False
 
         elif self.LMB_state:
+            if self._node_positions and not getattr(self, '_drag_suspended_bridges', False):
+                self._drag_suspended_bridges = True
+                PipeItem._SUSPEND_BRIDGES = True
             self.COLLIDING_state = False
             nodes, pipes = self.selected_items()
             if len(nodes) == 1:
@@ -721,6 +757,17 @@ class NodeViewer(QtWidgets.QGraphicsView):
             self.SHIFT_state = True
 
         if self._LIVE_PIPE.isVisible():
+            if event.key() == QtCore.Qt.Key_Backspace:
+                self._LIVE_PIPE.pop_waypoint()
+                if getattr(self, '_previous_pos', None) is not None:
+                    pos = self.mapToScene(self._previous_pos)
+                else:
+                    pos = self.mapToScene(self.mapFromGlobal(QtGui.QCursor.pos()))
+                self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos)
+                return
+            elif event.key() == QtCore.Qt.Key_Escape:
+                self.end_live_connection()
+                return
             super(NodeViewer, self).keyPressEvent(event)
             return
 
@@ -830,6 +877,10 @@ class NodeViewer(QtWidgets.QGraphicsView):
             return
 
         if self._LIVE_PIPE.isVisible():
+            if event.button() == QtCore.Qt.RightButton:
+                self._LIVE_PIPE.add_waypoint(event.scenePos())
+                self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=event.scenePos())
+                return
             self.apply_live_connection(event)
             return
 
@@ -907,6 +958,9 @@ class NodeViewer(QtWidgets.QGraphicsView):
             event (QtWidgets.QGraphicsSceneMouseEvent):
                 The event handler from the QtWidgets.QGraphicsScene
         """
+        if self._LIVE_PIPE.isVisible() and event.button() == QtCore.Qt.RightButton:
+            return
+
         if event.button() != QtCore.Qt.MiddleButton:
             self.apply_live_connection(event)
 
@@ -1105,6 +1159,12 @@ class NodeViewer(QtWidgets.QGraphicsView):
 
         connected.append((self._start_port, end_port))
 
+        if self._start_port.port_type == PortTypeEnum.IN.value:
+            # User routed backwards from IN port to OUT port; normalize to flow order
+            self._live_waypoints = list(reversed(self._LIVE_PIPE.waypoints))
+        else:
+            self._live_waypoints = list(self._LIVE_PIPE.waypoints)
+
         self.connection_changed.emit(disconnected, connected)
 
         self._detached_port = None
@@ -1118,14 +1178,15 @@ class NodeViewer(QtWidgets.QGraphicsView):
         if not selected_port:
             return
         self._start_port = selected_port
-        if self._start_port.type == PortTypeEnum.IN.value:
+        if self._start_port.port_type == PortTypeEnum.IN.value:
             self._LIVE_PIPE.input_port = self._start_port
-        elif self._start_port == PortTypeEnum.OUT.value:
+        elif self._start_port.port_type == PortTypeEnum.OUT.value:
             self._LIVE_PIPE.output_port = self._start_port
         self._LIVE_PIPE.setVisible(True)
+        origin = self._origin_pos if getattr(self, '_origin_pos', None) is not None else QtCore.QPoint(0, 0)
         self._LIVE_PIPE.draw_index_pointer(
             selected_port,
-            self.mapToScene(self._origin_pos)
+            self.mapToScene(origin)
         )
 
     def end_live_connection(self):
@@ -1136,9 +1197,11 @@ class NodeViewer(QtWidgets.QGraphicsView):
         self._LIVE_PIPE.reset_path()
         self._LIVE_PIPE.setVisible(False)
         self._LIVE_PIPE.shift_selected = False
+        self._LIVE_PIPE.clear_waypoints()
+        self._live_waypoints = []
         self._start_port = None
 
-    def establish_connection(self, start_port, end_port):
+    def establish_connection(self, start_port, end_port, waypoints=None):
         """
         establish a new pipe connection.
         (adds a new pipe item to draw between 2 ports)
@@ -1146,6 +1209,14 @@ class NodeViewer(QtWidgets.QGraphicsView):
         pipe = PipeItem()
         self.scene().addItem(pipe)
         pipe.set_connections(start_port, end_port)
+
+        wps = waypoints or getattr(self, '_pending_pipe_waypoints', None) or getattr(self, '_live_waypoints', None)
+        if wps:
+            pipe.waypoints = [
+                QtCore.QPointF(pt[0], pt[1]) if isinstance(pt, (list, tuple)) else QtCore.QPointF(pt)
+                for pt in wps
+            ]
+
         pipe.draw_path(pipe.input_port, pipe.output_port)
         if start_port.node.selected or end_port.node.selected:
             pipe.highlight()
@@ -1369,6 +1440,9 @@ class NodeViewer(QtWidgets.QGraphicsView):
         Returns:
             list[PipeItem]: instances of pipe items.
         """
+        idx = getattr(self.scene(), '_pipe_spatial_index', None)
+        if idx is not None:
+            return [p for p in idx.pipe_cells.keys() if p.scene() is self.scene()]
         excl = [self._LIVE_PIPE, self._SLICER_PIPE]
         return [i for i in self.scene().items()
                 if isinstance(i, PipeItem) and i not in excl]

@@ -129,6 +129,23 @@ class Port(object):
         if self.node() and hasattr(self.node(), 'view') and self.node().view:
             self.node().view.draw_node()
 
+    def set_radius(self, radius):
+        """
+        Sets the visual radius (in pixels) of the port circle/square.
+
+        Args:
+            radius (float): visual radius in pixels.
+        """
+        if self.view and hasattr(self.view, 'set_radius'):
+            self.view.set_radius(radius)
+
+    @property
+    def radius(self):
+        """Returns the visual radius of the port."""
+        if self.view and hasattr(self.view, 'circle_radius'):
+            return self.view.circle_radius
+        return 6.11
+
     @property
     def port_x(self):
         return self.model.port_x
@@ -333,7 +350,7 @@ class Port(object):
                     ports.append(node.inputs()[port_name])
         return ports
 
-    def connect_to(self, port=None, push_undo=True, emit_signal=True):
+    def connect_to(self, port=None, push_undo=True, emit_signal=True, waypoints=None):
         """
         Create connection to the specified port and emits the
         :attr:`NodeGraph.port_connected` signal from the parent node graph.
@@ -342,6 +359,7 @@ class Port(object):
             port (NodeGraphQt.Port): port object.
             push_undo (bool): register the command to the undo stack. (default: True)
             emit_signal (bool): emit the port connection signals. (default: True)
+            waypoints (list, optional): intermediate waypoint coordinates.
         """
         if not port:
             return
@@ -445,11 +463,11 @@ class Port(object):
                 NodeInputDisconnectedCmd(self, pre_conn_port).redo()
 
         if push_undo:
-            undo_stack.push(PortConnectedCmd(self, port, emit_signal))
+            undo_stack.push(PortConnectedCmd(self, port, emit_signal, waypoints=waypoints))
             undo_stack.push(NodeInputConnectedCmd(self, port))
             undo_stack.endMacro()
         else:
-            PortConnectedCmd(self, port, emit_signal).redo()
+            PortConnectedCmd(self, port, emit_signal, waypoints=waypoints).redo()
             NodeInputConnectedCmd(self, port).redo()
 
     def disconnect_from(self, port=None, push_undo=True, emit_signal=True):

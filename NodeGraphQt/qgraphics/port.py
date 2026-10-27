@@ -32,7 +32,50 @@ class PortItem(QtWidgets.QGraphicsItem):
         self._multi_connection = False
         self._locked = False
         self._flipped = False
+        self._port_x = None
+        self._port_y = None
+        self._label = None
+        self._label_pos = 'AUTO'
     
+    @property
+    def port_x(self):
+        return self._port_x
+
+    @port_x.setter
+    def port_x(self, value):
+        self._port_x = float(value) if value is not None else None
+
+    @property
+    def port_y(self):
+        return self._port_y
+
+    @port_y.setter
+    def port_y(self, value):
+        self._port_y = float(value) if value is not None else None
+
+    @property
+    def PortX(self):
+        return self._port_x
+
+    @PortX.setter
+    def PortX(self, value):
+        self._port_x = float(value) if value is not None else None
+
+    @property
+    def PortY(self):
+        return self._port_y
+
+    @PortY.setter
+    def PortY(self, value):
+        self._port_y = float(value) if value is not None else None
+
+    def has_custom_pos(self):
+        return self._port_x is not None and self._port_y is not None
+
+    def set_custom_pos(self, x, y):
+        self._port_x = float(x) if x is not None else None
+        self._port_y = float(y) if y is not None else None
+
     @property
     def flipped(self):
         return self._flipped
@@ -47,10 +90,54 @@ class PortItem(QtWidgets.QGraphicsItem):
     def __repr__(self):
         return '{}.PortItem("{}")'.format(self.__module__, self.name)
 
+    @property
+    def circle_radius(self):
+        """Radius of the visual circle drawn by paint()."""
+        return (self._width / 1.8) / 2.0
+
+    @property
+    def circle_center(self):
+        """Visual center (cx, cy) of the port circle in parent item coordinates."""
+        return (self.x() + self.boundingRect().width() / 2.0,
+                self.y() + self.boundingRect().height() / 2.0)
+
+    @property
+    def click_falloff(self):
+        """Scale click falloff proportionally with port width."""
+        return max(4.0, self._width * (15.0 / 22.0))
+
     def boundingRect(self):
         return QtCore.QRectF(0.0, 0.0,
-                             self._width + PortEnum.CLICK_FALLOFF.value,
+                             self._width + self.click_falloff,
                              self._height)
+
+    def set_radius(self, radius):
+        """
+        Sets the visual radius (in pixels) of the port circle/square.
+        Since visual diameter is _width / 1.8, _width = radius * 3.6.
+        """
+        r = float(radius)
+        if abs(self.circle_radius - r) < 0.001:
+            return
+        self.prepareGeometryChange()
+        self._width = r * 3.6
+        self._height = r * 3.6
+        if self.connected_pipes:
+            self.redraw_connected_pipes()
+        self.update()
+
+    def set_size(self, width, height):
+        """Sets internal width and height of the port."""
+        w = float(width)
+        h = float(height)
+        if abs(self._width - w) < 0.001 and abs(self._height - h) < 0.001:
+            return
+        self.prepareGeometryChange()
+        self._width = w
+        self._height = h
+        if self.connected_pipes:
+            self.redraw_connected_pipes()
+        self.update()
 
     def paint(self, painter, option, widget):
 
@@ -204,6 +291,22 @@ class PortItem(QtWidgets.QGraphicsItem):
     @display_name.setter
     def display_name(self, display=True):
         self._display_name = display
+
+    @property
+    def label(self):
+        return self._label
+
+    @label.setter
+    def label(self, value):
+        self._label = str(value) if value is not None else None
+
+    @property
+    def label_pos(self):
+        return self._label_pos
+
+    @label_pos.setter
+    def label_pos(self, value):
+        self._label_pos = str(value).upper() if value is not None else 'AUTO'
 
     @property
     def color(self):

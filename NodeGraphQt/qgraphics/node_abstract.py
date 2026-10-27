@@ -33,9 +33,13 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
             'disabled': False,
             'visible': False,
             'layout_direction': LayoutDirectionEnum.HORIZONTAL.value,
+            'rotation': 0.0,
         }
         self._width = NodeEnum.WIDTH.value
         self._height = NodeEnum.HEIGHT.value
+        self._custom_width = None
+        self._custom_height = None
+        self.setTransformOriginPoint(self._width / 2.0, self._height / 2.0)
 
     def __repr__(self):
         return '{}.{}(\'{}\')'.format(
@@ -121,7 +125,13 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
 
     @width.setter
     def width(self, width=0.0):
-        self._width = width
+        if width is None:
+            self._custom_width = None
+        else:
+            self.prepareGeometryChange()
+            self._width = float(width)
+            self._custom_width = float(width)
+            self.setTransformOriginPoint(self._width / 2.0, self._height / 2.0)
 
     @property
     def height(self):
@@ -129,7 +139,40 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
 
     @height.setter
     def height(self, height=0.0):
-        self._height = height
+        if height is None:
+            self._custom_height = None
+        else:
+            self.prepareGeometryChange()
+            self._height = float(height)
+            self._custom_height = float(height)
+            self.setTransformOriginPoint(self._width / 2.0, self._height / 2.0)
+
+    @property
+    def rotation(self):
+        return float(self._properties.get('rotation', 0.0))
+
+    @rotation.setter
+    def rotation(self, deg=0.0):
+        self.set_rotation(deg)
+
+    def set_rotation(self, deg=0.0):
+        deg = max(-360.0, min(360.0, float(deg)))
+        self._properties['rotation'] = deg
+        self.setTransformOriginPoint(self._width / 2.0, self._height / 2.0)
+        self.setRotation(deg)
+        ports = []
+        if hasattr(self, 'inputs'):
+            ports.extend(self.inputs)
+        elif hasattr(self, '_input_items'):
+            ports.extend(list(self._input_items.keys()))
+        if hasattr(self, 'outputs'):
+            ports.extend(self.outputs)
+        elif hasattr(self, '_output_items'):
+            ports.extend(list(self._output_items.keys()))
+        for port in ports:
+            if hasattr(port, 'redraw_connected_pipes'):
+                port.redraw_connected_pipes()
+        self.update()
 
     @property
     def color(self):
@@ -226,6 +269,8 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
         """
         props = {'width': self.width,
                  'height': self.height,
+                 'flipped_x': getattr(self, 'flipped_x', False),
+                 'flipped_y': getattr(self, 'flipped_y', False),
                  'pos':  self.xy_pos}
         props.update(self._properties)
         return props
@@ -254,9 +299,11 @@ class AbstractNodeItem(QtWidgets.QGraphicsItem):
         Args:
             node_dict (dict): serialized node dict.
         """
-        node_attrs = list(self._properties.keys()) + ['width', 'height', 'pos']
+        node_attrs = list(self._properties.keys()) + ['width', 'height', 'flipped_x', 'flipped_y', 'pos']
         for name, value in node_dict.items():
             if name in node_attrs:
+                if name in ['width', 'height'] and value is None:
+                    continue
                 # "node.pos" conflicted with "QGraphicsItem.pos()"
                 # so it's refactored to "xy_pos".
                 if name == 'pos':

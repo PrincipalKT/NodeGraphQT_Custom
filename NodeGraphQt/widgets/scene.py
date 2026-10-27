@@ -48,11 +48,11 @@ class NodeScene(QtWidgets.QGraphicsScene):
         lines = []
         lines.extend([
             QtCore.QLineF(x, top, x, bottom)
-            for x in range(first_left, right, grid_size)
+            for x in range(first_left, right + grid_size, grid_size)
         ])
         lines.extend([
             QtCore.QLineF(left, y, right, y)
-            for y in range(first_top, bottom, grid_size)]
+            for y in range(first_top, bottom + grid_size, grid_size)]
         )
 
         painter.setPen(pen)
@@ -94,25 +94,21 @@ class NodeScene(QtWidgets.QGraphicsScene):
         painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
         painter.setBrush(self.backgroundBrush())
 
-        if self._grid_mode is ViewerEnum.GRID_DISPLAY_DOTS.value:
+        if self._grid_mode is ViewerEnum.GRID_DISPLAY_LINES.value:
+            gc = self.grid_color
+            if len(gc) == 3:
+                color = QtGui.QColor(gc[0], gc[1], gc[2], 140)
+            elif len(gc) >= 4:
+                color = QtGui.QColor(gc[0], gc[1], gc[2], gc[3])
+            else:
+                color = QtGui.QColor(*gc)
+            pen = QtGui.QPen(color, 1.0)
+            pen.setStyle(QtCore.Qt.DotLine)
+            pen.setCosmetic(True)
+            self._draw_grid(painter, rect, pen, ViewerEnum.GRID_SIZE.value)
+        elif self._grid_mode is ViewerEnum.GRID_DISPLAY_DOTS.value:
             pen = QtGui.QPen(QtGui.QColor(*self.grid_color), 0.65)
             self._draw_dots(painter, rect, pen, ViewerEnum.GRID_SIZE.value)
-
-        elif self._grid_mode is ViewerEnum.GRID_DISPLAY_LINES.value:
-            zoom = self.viewer().get_zoom()
-            if zoom > -0.5:
-                pen = QtGui.QPen(QtGui.QColor(*self.grid_color), 0.65)
-                self._draw_grid(
-                    painter, rect, pen, ViewerEnum.GRID_SIZE.value
-                )
-
-            color = QtGui.QColor(*self._bg_color).darker(200)
-            if zoom < -0.0:
-                color = color.darker(100 - int(zoom * 110))
-            pen = QtGui.QPen(color, 0.65)
-            self._draw_grid(
-                painter, rect, pen, ViewerEnum.GRID_SIZE.value * 8
-            )
 
         painter.restore()
 
@@ -139,6 +135,11 @@ class NodeScene(QtWidgets.QGraphicsScene):
         if self.viewer():
             self.viewer().sceneMouseReleaseEvent(event)
         super(NodeScene, self).mouseReleaseEvent(event)
+
+    def clear(self):
+        if hasattr(self, '_pipe_spatial_index') and self._pipe_spatial_index:
+            self._pipe_spatial_index.clear()
+        super(NodeScene, self).clear()
 
     def viewer(self):
         return self.views()[0] if self.views() else None
@@ -169,3 +170,4 @@ class NodeScene(QtWidgets.QGraphicsScene):
     def background_color(self, color=(0, 0, 0)):
         self._bg_color = color
         self.setBackgroundBrush(QtGui.QColor(*self._bg_color))
+

@@ -100,6 +100,146 @@ class Port(object):
         """
         return self.model.name
 
+    def port_pos(self):
+        """
+        Returns the port (x, y) coordinates relative to the parent node origin at bottom-left (0, 0).
+
+        Returns:
+            tuple(float, float): (x, y) coordinates where (0,0) is bottom-left.
+        """
+        if self.model.port_x is not None and self.model.port_y is not None:
+            return self.model.port_x, self.model.port_y
+        node_h = self.node().view._height if self.node() and hasattr(self.node(), 'view') and self.node().view else 0.0
+        return self.view.x(), node_h - self.view.y()
+
+    def set_port_pos(self, x, y):
+        """
+        Set the custom position of the port relative to the parent node origin at bottom-left (0, 0).
+
+        Args:
+            x (float): x position in pixels from left edge.
+            y (float): y position in pixels from bottom edge.
+        """
+        val_x = float(x) if x is not None else None
+        val_y = float(y) if y is not None else None
+        self.model.port_x = val_x
+        self.model.port_y = val_y
+        self.view.port_x = val_x
+        self.view.port_y = val_y
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            self.node().view.draw_node()
+
+    def set_radius(self, radius):
+        """
+        Sets the visual radius (in pixels) of the port circle/square.
+
+        Args:
+            radius (float): visual radius in pixels.
+        """
+        if self.view and hasattr(self.view, 'set_radius'):
+            self.view.set_radius(radius)
+
+    @property
+    def radius(self):
+        """Returns the visual radius of the port."""
+        if self.view and hasattr(self.view, 'circle_radius'):
+            return self.view.circle_radius
+        return 6.11
+
+    @property
+    def port_x(self):
+        return self.model.port_x
+
+    @port_x.setter
+    def port_x(self, val):
+        self.set_port_pos(val, self.model.port_y)
+
+    @property
+    def port_y(self):
+        return self.model.port_y
+
+    @port_y.setter
+    def port_y(self, val):
+        self.set_port_pos(self.model.port_x, val)
+
+    @property
+    def PortX(self):
+        return self.port_x
+
+    @PortX.setter
+    def PortX(self, val):
+        self.port_x = val
+
+    @property
+    def PortY(self):
+        return self.port_y
+
+    @PortY.setter
+    def PortY(self, val):
+        self.port_y = val
+
+    def display_name(self):
+        """Returns whether this port's name/label is displayed on the node."""
+        return self.model.display_name
+
+    def set_display_name(self, display=True):
+        """
+        Sets whether this port's name/label is displayed on the node.
+
+        Args:
+            display (bool): True to show, False to hide.
+        """
+        val = bool(display)
+        self.model.display_name = val
+        self.view.display_name = val
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            text_item = (self.node().view.get_input_text_item(self.view)
+                         if self.type_() == PortTypeEnum.IN.value
+                         else self.node().view.get_output_text_item(self.view))
+            if text_item:
+                show_global = getattr(self.node().view, 'show_port_labels', True)
+                text_item.setVisible(val and show_global)
+            self.node().view.draw_node()
+
+    def label(self):
+        """Returns the custom display text for this port, or its name if not set."""
+        return self.model.label if self.model.label is not None else self.name()
+
+    def set_label(self, label):
+        """
+        Set a custom display text for this port on the canvas.
+
+        Args:
+            label (str or None): Custom text to display, or None to revert to port name.
+        """
+        val = str(label) if label is not None else None
+        self.model.label = val
+        self.view.label = val
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            text_item = (self.node().view.get_input_text_item(self.view)
+                         if self.type_() == PortTypeEnum.IN.value
+                         else self.node().view.get_output_text_item(self.view))
+            if text_item:
+                text_item.setPlainText(val if val is not None else self.name())
+            self.node().view.draw_node()
+
+    def label_pos(self):
+        """Returns the directional text alignment ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR')."""
+        return getattr(self.model, 'label_pos', 'AUTO')
+
+    def set_label_pos(self, pos):
+        """
+        Set the directional text position for this port.
+
+        Args:
+            pos (str): 'AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', or 'BR'.
+        """
+        val = str(pos).upper().strip() if pos is not None else 'AUTO'
+        self.model.label_pos = val
+        self.view.label_pos = val
+        if self.node() and hasattr(self.node(), 'view') and self.node().view:
+            self.node().view.draw_node()
+
     def visible(self):
         """
         Port visible in the node graph.
@@ -210,7 +350,7 @@ class Port(object):
                     ports.append(node.inputs()[port_name])
         return ports
 
-    def connect_to(self, port=None, push_undo=True, emit_signal=True):
+    def connect_to(self, port=None, push_undo=True, emit_signal=True, waypoints=None):
         """
         Create connection to the specified port and emits the
         :attr:`NodeGraph.port_connected` signal from the parent node graph.
@@ -219,6 +359,7 @@ class Port(object):
             port (NodeGraphQt.Port): port object.
             push_undo (bool): register the command to the undo stack. (default: True)
             emit_signal (bool): emit the port connection signals. (default: True)
+            waypoints (list, optional): intermediate waypoint coordinates.
         """
         if not port:
             return
@@ -322,11 +463,11 @@ class Port(object):
                 NodeInputDisconnectedCmd(self, pre_conn_port).redo()
 
         if push_undo:
-            undo_stack.push(PortConnectedCmd(self, port, emit_signal))
+            undo_stack.push(PortConnectedCmd(self, port, emit_signal, waypoints=waypoints))
             undo_stack.push(NodeInputConnectedCmd(self, port))
             undo_stack.endMacro()
         else:
-            PortConnectedCmd(self, port, emit_signal).redo()
+            PortConnectedCmd(self, port, emit_signal, waypoints=waypoints).redo()
             NodeInputConnectedCmd(self, port).redo()
 
     def disconnect_from(self, port=None, push_undo=True, emit_signal=True):

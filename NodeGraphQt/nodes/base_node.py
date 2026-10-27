@@ -384,7 +384,9 @@ class BaseNode(NodeObject):
             undo_cmd.redo()
 
     def add_input(self, name='input', multi_input=False, display_name=True,
-                  color=None, locked=False, painter_func=None,flip_node=False):
+                  color=None, locked=False, painter_func=None, flip_node=False,
+                  port_x=None, port_y=None, PortX=None, PortY=None,
+                  label=None, label_pos='AUTO'):
         """
         Add input :class:`Port` to node.
 
@@ -399,6 +401,13 @@ class BaseNode(NodeObject):
             locked (bool): locked state see :meth:`Port.set_locked`
             painter_func (function or None): custom function to override the drawing
                 of the port shape see example: :ref:`Creating Custom Shapes`
+            flip_node (bool): flipped state.
+            port_x (float): custom x position in px relative to component origin (0, 0).
+            port_y (float): custom y position in px relative to component origin (0, 0).
+            PortX (float): alias for port_x.
+            PortY (float): alias for port_y.
+            label (str or None): custom text label to display instead of name.
+            label_pos (str): directional position ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR').
 
         Returns:
             NodeGraphQt.Port: the created port object.
@@ -407,10 +416,14 @@ class BaseNode(NodeObject):
             raise PortRegistrationError(
                 'port name "{}" already registered.'.format(name))
 
+        eff_x = PortX if PortX is not None else port_x
+        eff_y = PortY if PortY is not None else port_y
+
         port_args = [name, multi_input, display_name, locked]
         if painter_func and callable(painter_func):
             port_args.append(painter_func)
-        view = self.view.add_input(*port_args,flip_node= flip_node)
+        view = self.view.add_input(*port_args, flip_node=flip_node, port_x=eff_x, port_y=eff_y,
+                                   label=label, label_pos=label_pos)
 
         if color:
             view.color = color
@@ -423,12 +436,18 @@ class BaseNode(NodeObject):
         port.model.multi_connection = multi_input
         port.model.locked = locked
         port.model.flipped = flip_node
+        port.model.port_x = float(eff_x) if eff_x is not None else None
+        port.model.port_y = float(eff_y) if eff_y is not None else None
+        port.model.label = label
+        port.model.label_pos = label_pos
         self._inputs.append(port)
         self.model.inputs[port.name()] = port.model
         return port
 
     def add_output(self, name='output', multi_output=True, display_name=True,
-                   color=None, locked=False, painter_func=None,flip_node = False):
+                   color=None, locked=False, painter_func=None, flip_node=False,
+                   port_x=None, port_y=None, PortX=None, PortY=None,
+                   label=None, label_pos='AUTO'):
         """
         Add output :class:`Port` to node.
 
@@ -443,6 +462,13 @@ class BaseNode(NodeObject):
             locked (bool): locked state see :meth:`Port.set_locked`
             painter_func (function or None): custom function to override the drawing
                 of the port shape see example: :ref:`Creating Custom Shapes`
+            flip_node (bool): flipped state.
+            port_x (float): custom x position in px relative to component origin (0, 0).
+            port_y (float): custom y position in px relative to component origin (0, 0).
+            PortX (float): alias for port_x.
+            PortY (float): alias for port_y.
+            label (str or None): custom text label to display instead of name.
+            label_pos (str): directional position ('AUTO', 'T', 'B', 'L', 'R', 'TL', 'TR', 'BL', 'BR').
 
         Returns:
             NodeGraphQt.Port: the created port object.
@@ -451,10 +477,14 @@ class BaseNode(NodeObject):
             raise PortRegistrationError(
                 'port name "{}" already registered.'.format(name))
 
+        eff_x = PortX if PortX is not None else port_x
+        eff_y = PortY if PortY is not None else port_y
+
         port_args = [name, multi_output, display_name, locked]
         if painter_func and callable(painter_func):
             port_args.append(painter_func)
-        view = self.view.add_output(*port_args,flip_node=flip_node)
+        view = self.view.add_output(*port_args, flip_node=flip_node, port_x=eff_x, port_y=eff_y,
+                                    label=label, label_pos=label_pos)
 
         if color:
             view.color = color
@@ -466,6 +496,10 @@ class BaseNode(NodeObject):
         port.model.multi_connection = multi_output
         port.model.locked = locked
         port.model.flipped = flip_node
+        port.model.port_x = float(eff_x) if eff_x is not None else None
+        port.model.port_y = float(eff_y) if eff_y is not None else None
+        port.model.label = label
+        port.model.label_pos = label_pos
         self._outputs.append(port)
         self.model.outputs[port.name()] = port.model
         return port
@@ -642,16 +676,33 @@ class BaseNode(NodeObject):
                         multi_input=port['multi_connection'],
                         display_name=port['display_name'],
                         locked=port.get('locked') or False,
-                        flip_node=port['flipped'])
+                        flip_node=port['flipped'],
+                        port_x=port.get('port_x'),
+                        port_y=port.get('port_y'))
          for port in port_data['input_ports']]
         [self.add_output(name=port['name'],
                          multi_output=port['multi_connection'],
                          display_name=port['display_name'],
                          locked=port.get('locked') or False,
                          flip_node=port['flipped'],
-                         painter_func=painter_func_ouput_port)
+                         painter_func=painter_func_ouput_port,
+                         port_x=port.get('port_x'),
+                         port_y=port.get('port_y'))
          for port in port_data['output_ports']]
         self._view.draw_node()
+
+    def set_port_pos(self, port_name, x, y):
+        """
+        Sets the position of a port relative to the node origin (0, 0).
+
+        Args:
+            port_name (str): name of the port.
+            x (float): x position in pixels relative to component origin (0, 0).
+            y (float): y position in pixels relative to component origin (0, 0).
+        """
+        port = self.inputs().get(port_name) or self.outputs().get(port_name)
+        if port:
+            port.set_port_pos(x, y)
 
     def inputs(self):
         """

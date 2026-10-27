@@ -914,13 +914,15 @@ class NodeItem(AbstractNodeItem):
         Args:
             v_offset (float): port vertical offset.
         """
-        # Dynamically scale port radius based on component area:
+        # Dynamically scale port radius based on component area or custom calculation:
         # Minimum: 2.0px radius, Maximum: 8.0px radius
-        # Least component size: 40x40 (area 1600 px^2)
-        # For every square pixel increased beyond 1600, radius increases by 0.0005px
-        area = float(self._width) * float(self._height)
-        delta_area = max(0.0, area - 1600.0)
-        port_radius = max(2.0, min(8.0, 2.0 + delta_area * 0.0005))
+        base_node = self.get_base_node_ref() if hasattr(self, 'get_base_node_ref') else getattr(self, 'node', None)
+        if base_node and hasattr(base_node, 'calculate_port_radius'):
+            port_radius = base_node.calculate_port_radius()
+        else:
+            area = float(self._width) * float(self._height)
+            delta_area = max(0.0, area - 1600.0)
+            port_radius = max(2.0, min(8.0, 2.0 + delta_area * 0.0005))
         for port in list(self.inputs) + list(self.outputs):
             if hasattr(port, 'set_radius'):
                 port.set_radius(port_radius)
